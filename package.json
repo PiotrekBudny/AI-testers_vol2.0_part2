@@ -1,0 +1,30 @@
+{
+  "name": "ai-testers_vol2.0_part2",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+    "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PiotrekBudny/AI-testers_vol2.0_part2.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/PiotrekBudny/AI-testers_vol2.0_part2/issues"
+  },
+  "homepage": "https://github.com/PiotrekBudny/AI-testers_vol2.0_part2#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": "24.15.0",
+    "npm": "11.12.1"
+  }
+}
