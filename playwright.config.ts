@@ -11,6 +11,6 @@ export default defineConfig({
     {
       name: 'mockingTests',
       use: { ...devices['Desktop Chrome'] },
-    }
+    },
   ],
 });

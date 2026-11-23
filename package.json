@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-    "scripts": {
-    "typecheck": "tsc --noEmit"
+  "scripts": {
+    "test": "playwright test",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check --write --unsafe",
+    "prepare": "husky",
+    "format": "biome format --write"
   },
   "repository": {
     "type": "git",
@@ -19,9 +23,17 @@
   },
   "homepage": "https://github.com/PiotrekBudny/AI-testers_vol2.0_part2#readme",
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
+    "@faker-js/faker": "10.6.0",
     "@playwright/test": "^1.65.1",
     "@types/node": "^26.6.6",
+    "dotenv": "18.0.10",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.2",
     "typescript": "7.0.2"
+  },
+  "lint-staged": {
+    "*.{ts,js,json,md}": "biome check --write --no-errors-on-unmatched"
   },
   "engines": {
     "node": "24.15.0",

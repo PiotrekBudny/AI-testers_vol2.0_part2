@@ -16,26 +16,26 @@ Format:
 
 ### Types
 
-| Type       | Use for                                                        |
-|------------|----------------------------------------------------------------|
-| `feat`     | New test, page object, fixture or helper                       |
-| `fix`      | Fixing a broken or flaky test or helper                        |
-| `test`     | Changing existing tests without adding a new capability        |
-| `refactor` | Restructuring code without changing behaviour                  |
+| Type       | Use for                                                         |
+| ---------- | --------------------------------------------------------------- |
+| `feat`     | New test, page object, fixture or helper                        |
+| `fix`      | Fixing a broken or flaky test or helper                         |
+| `test`     | Changing existing tests without adding a new capability         |
+| `refactor` | Restructuring code without changing behaviour                   |
 | `chore`    | Dependencies, tooling, config (`package.json`, `tsconfig.json`) |
-| `ci`       | CI pipeline changes                                            |
-| `docs`     | Documentation only (README, CLAUDE.md, comments)               |
-| `style`    | Formatting only, no logic change                               |
-| `perf`     | Making tests or tooling faster                                 |
-| `build`    | Build system or Playwright config (`playwright.config.ts`)     |
-| `revert`   | Reverting a previous commit                                    |
+| `ci`       | CI pipeline changes                                             |
+| `docs`     | Documentation only (README, CLAUDE.md, comments)                |
+| `style`    | Formatting only, no logic change                                |
+| `perf`     | Making tests or tooling faster                                  |
+| `build`    | Build system or Playwright config (`playwright.config.ts`)      |
+| `revert`   | Reverting a previous commit                                     |
 
 ### Rules
 
 - `type` is lowercase and required.
 - `scope` is optional and names the area changed, e.g. `config`, `mocking`, `deps`, or a feature or page name.
 - Write `description` in the imperative mood ("add", not "added" or "adds"), start it lowercase, don't end it with a period, and keep the whole first line at 72 characters or fewer.
-- Leave a blank line between the subject and the body. Use the body to explain *what* and *why*, not *how*.
+- Leave a blank line between the subject and the body. Use the body to explain _what_ and _why_, not _how_.
 - For breaking changes, add `!` after the type or scope (`feat(config)!: ...`) and a `BREAKING CHANGE: <explanation>` footer.
 - Reference issues in the footer: `Refs: #123` or `Closes: #123`.
 - Make one logical change per commit.
