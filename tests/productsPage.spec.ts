@@ -1,4 +1,4 @@
-import { test } from '../src/fixtures/test';
+import { expect, test } from '../src/fixtures/test';
 import { ProductGenerator } from '../src/generators/productGenerator';
 
 test('client sees all mocked products on products page', async ({
@@ -56,4 +56,35 @@ test('product with very long name and description keeps card layout', async ({
     await longCard.expectNoHorizontalOverflow();
     await longCard.expectSameSizeAs(regularCard);
   }
+});
+
+test('out of stock product cannot be added to cart while neighbours can', async ({
+  productsPage,
+  productSearchMock,
+  cartItemsMock,
+}) => {
+  productSearchMock.products = new ProductGenerator().generateProducts(3, {
+    stockQuantity: 25,
+  });
+  productSearchMock.updateProduct(2, { stockQuantity: 0 });
+  const [available] = productSearchMock.products;
+  if (!available) {
+    throw new Error('Expected a generated product before the sold out one');
+  }
+
+  await productsPage.goto();
+
+  await productsPage.expectToShowProducts(productSearchMock.products);
+  await expect(productsPage.texts.inStockCount).toHaveText('2');
+
+  await productsPage.productAt(1).forceAddToCart();
+  await productsPage.productAt(0).addToCart(2);
+
+  await expect(productsPage.toast.texts.title).toHaveText('Added to cart');
+  await expect(productsPage.toast.texts.description).toHaveText(
+    `2 × ${available.name} added to your cart`,
+  );
+  expect(cartItemsMock.addedItems).toEqual([
+    { productId: available.id, quantity: 2 },
+  ]);
 });
