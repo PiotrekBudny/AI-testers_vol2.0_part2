@@ -35,16 +35,18 @@ src/
   enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   models/product.ts                         Product (one search hit)
+  models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productsPage.ts                     ProductsPage (/products)
   fixtures/test.ts                          test/expect with page object + mock fixtures
+  mocks/cartItemsMock.ts                    route mock for POST /api/v1/cart/items
   mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 tests/                                      Playwright specs (testDir)
-  productsPage.spec.ts                      all mocked products shown on /products
+  productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
 playwright.config.ts
 ```
 
@@ -224,9 +226,34 @@ Imports between `src/` files are relative and extensionless.
     - Ratings with one decimal for whole numbers (`★ 4.0 (3)`) and the
       out-of-stock state are rare in random data, so they may not have
       come up.
-  - With no results: `product-search-summary` reads `No matching products`,
-    and `no-products-message` and `reset-search-button` ("Clear filters")
-    appear. `clear-search` (✕) shows inside the search box once it has text.
+  - With no results and no search query: `products-count-summary` reads
+    `0 products match` and `product-search-summary` `No matching products`.
+    `no-products-message` reads only `No products found`,
+    `products-categories-empty` reads `No categories match`, and the
+    in-stock count is `0`. There is no `product-list`, pagination or
+    `reset-search-button`. `ProductsPage.expectNoProducts()` checks all of
+    this.
+  - With no results for a search query, `no-products-message` also says
+    "Try adjusting your search or" and `reset-search-button` ("Clear
+    filters") appears. `clear-search` (✕) shows inside the search box once
+    it has text.
+  - Long texts: `product-name` has `line-clamp-2` and
+    `product-description` `line-clamp-3` (ellipsis, overflow hidden), and
+    the full text stays in the DOM. Unbroken words wrap
+    (`overflow-wrap: break-word`). Cards keep the same size whatever the
+    text length, and price and Add to Cart don't move.
+    `ProductCard.expectLongTextsTruncated()`, `expectNoHorizontalOverflow()`
+    and `expectSameSizeAs(other)` check this.
+  - Add to Cart sends `POST /api/v1/cart/items` with
+    `{"productId": <id>, "quantity": <n>}` and gets the cart back
+    (`{username, items, totalPrice, totalItems}`). The toast reads
+    `Added to cart` / `<n> × <name> added to your cart`. The card's
+    quantity stays at what was chosen.
+  - On an out-of-stock card the Add to Cart button is `disabled`. A forced
+    click sends no request.
+  - Intercepting every non-GET request (`page.route('**/*')`) stopped Add to
+    Cart from sending anything. Mock only the exact endpoint
+    (`CartItemsMock` routes `**/api/v1/cart/items`).
   - When the search request returns `500`, the list stays on
     `product-list-loading` ("Loading products...") for at least 2 s,
     probably while the app retries. No error state has been seen.
@@ -274,6 +301,12 @@ Imports between `src/` files are relative and extensionless.
     So changes apply to the next request, even after the page has loaded.
   - It doesn't filter by `q`, `category`, price, rating or stock, or sort.
     It serves `products` in their given order.
+- **`CartItemsMock`** (fixture `cartItemsMock`, requested only by tests
+  that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
+  change the shared account's real cart. It records each request body in
+  `addedItems` and answers with a cart priced from
+  `productSearchMock.products`. A test that clicks Add to Cart must take
+  this fixture.
 - **`ProductSearchResponseBuilder`**:
   - `withProducts`/`withGeneratedProducts` take _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
