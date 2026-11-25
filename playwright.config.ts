@@ -1,11 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
+import type { Options } from './src/fixtures/test';
 
 dotenv.config({ quiet: true });
 
 const isCI = !!process.env.CI;
 
-export default defineConfig({
+export default defineConfig<Options>({
   testDir: './tests',
   fullyParallel: true,
   forbidOnly: isCI,
@@ -17,11 +18,19 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',
     trace: isCI ? 'off' : 'on-first-retry',
+    harRecording: !isCI,
+    harUpdate: !isCI && process.env.UPDATE_HAR === 'true',
   },
   projects: [
     {
+      name: 'setup',
+      testMatch: /.*\.setup\.ts/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
       name: 'mockingTests',
       use: { ...devices['Desktop Chrome'] },
+      dependencies: ['setup'],
     },
   ],
 });
