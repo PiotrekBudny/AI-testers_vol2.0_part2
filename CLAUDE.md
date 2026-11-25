@@ -83,6 +83,9 @@ Imports between `src/` files are relative and extensionless.
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
   forbids classes with only static members, so use instance methods).
+  `biome.json` excludes `.claude/skills/**/SKILL.md`, because Biome's
+  Markdown formatter breaks YAML frontmatter (it inserts a blank line
+  after the opening `---` and turns a leading `+` into a list).
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
@@ -124,6 +127,11 @@ Imports between `src/` files are relative and extensionless.
   each user to approve project MCP servers on first use. The server writes
   snapshots and console logs to `.playwright-mcp/` (git-ignored).
 - `.claude/settings.json` holds a shared allowlist of read-only commands.
+- `.claude/skills/` holds project skills. **api-login** covers API
+  authentication in tests and in Playwright MCP. Its `mcp-login.mjs`
+  signs in from `.env` and writes a one-off, git-ignored
+  `.playwright-mcp/api-login.js` for `browser_run_code_unsafe`, so the
+  password never appears in MCP tool arguments.
 
 ## Playwright config
 
@@ -435,70 +443,14 @@ Imports between `src/` files are relative and extensionless.
     reports the errors.
   - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
     search was served and that `errors` is empty.
-- **API login (`loginViaApi`)**: tests don't log in through the UI.
-  - `AuthApi.signIn(user, baseURL)` (`src/api/authApi.ts`) sends
-    `POST /api/v1/users/signin` with `{username, password}`. The reference
-    is the Swagger spec (`LoginDto` → `LoginResponseDto`); HARs never
-    record sign-in.
-    - The response has `token` (JWT, valid 1 hour, `exp - iat = 3600`),
-      `refreshToken`, the profile, and `mfaRequired` / `challengeToken`.
-    - Sign-in throws on a non-2xx status, on `mfaRequired`, or when the
-      tokens are missing. The error never includes the password.
-  - **`apiSessions`** is a worker-scoped fixture. It owns one
-    `APIRequestContext` (no `baseURL`, absolute URLs) and an `ApiSessions`
-    cache (`src/api/apiSessions.ts`).
-    - The cache key is the **origin of the test's `baseURL` plus the
-      role**, so a `test.use({ baseURL })` override signs in on the same
-      host it stores the token for.
-    - That's **one sign-in per worker per host and role** (verified: 6
-      workers, 6 sign-ins).
-    - `get(role, baseURL)` signs in again when the cached JWT is within
-      120 s of `exp`. A failed sign-in is dropped, so the next test
-      retries.
-    - `renew(role, baseURL)` always signs in again and replaces the cached
-      session.
-  - **Rule:** tests in a worker share one cached session. A test that
-    logs out, or otherwise invalidates its token, must call
-    `apiSessions.renew(userRole, baseURL)` at its end, or later tests in
-    that worker get a dead token. No test logs out yet.
-  - **`loginViaApi`** is an `auto` test fixture. It yields the
-    `ApiSession` (`user`, `token`, `refreshToken`, `expiresAt`) for
-    `userRole`, or `null` with `skipAutoLogin`. Request it only when the
-    test needs the user's data (`loginViaApi?.user.displayName`). It's
-    `auto` because a test that asked for it only to trigger login would
-    trip Biome's `noUnusedFunctionParameters`.
-  - The **`storageState`** fixture override turns the session into
-    Playwright's in-memory storage state (`storageStateFor`). It puts
-    `token` and `refreshToken` in localStorage for the `baseURL` origin, so
-    the context starts logged in. Nothing is written to disk, and no init
-    script runs again on navigation.
-    - The app keeps its session only in localStorage (no cookies).
-      `clientSessionId` (a UUID, sent as `x-client-session-id`) is
-      created by the app itself on load, so it isn't injected. Verified:
-      the dashboard shows the display name with zero UI sign-in requests,
-      and localStorage then holds all three keys.
-  - Options: `userRole` is `'client'` (default) or `'admin'` (API login,
-    unverified). **`skipAutoLogin: true`** keeps the test logged out: no
-    sign-in, empty storage state. Login form tests must use it:
-    `test.use({ skipAutoLogin: true })`. It's the only way to stay logged
-    out, since `userRole: null` no longer exists.
-  - `tests/auth.spec.ts` guards the API login with two tests:
-    - The app accepts the injected session: no redirect to `/login`, and
-      the profile link shows the display name. If the app renames its
-      localStorage keys or rejects the token, this clearly named test
-      fails, not just vague locator timeouts elsewhere.
-    - `skipAutoLogin` lands on the login form. It also serves as the
-      usage example for the flag.
-  - Credentials are read only by a test that logs in, so `skipAutoLogin`
-    tests run without `.env`. Logged-in tests fail with
-    `Missing environment variable CLIENT_USERNAME` (verified).
-  - A test opens its page directly with `goto()` (for example
-    `productsPage.goto()`), not through the dashboard.
-  - History: one UI login per test (8 at once on the shared account) made
-    sign-in hang on "Signing in..." past the 5 s wait. A `setup` project
-    with a stored `playwright/.auth` file followed. Both were replaced by
-    API login, which needs no browser, no project dependency and no token
-    file.
+- **API login (`loginViaApi`)**: tests never log in through the UI form.
+  The auto `loginViaApi` fixture signs in once per worker with
+  `POST /api/v1/users/signin` (`AuthApi.signIn`). The `storageState`
+  override starts every context with `token`/`refreshToken` in
+  localStorage, and `test.use({ skipAutoLogin: true })` keeps a test
+  logged out. The **api-login** skill (`.claude/skills/api-login/SKILL.md`)
+  covers how to add it to a test or a new role, the logout/`renew` rule,
+  and logging in through Playwright MCP.
 - **`FakeProductSearchMock`** (fixture `fakeProductSearchMock`): the
   fixture creates it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
@@ -542,7 +494,8 @@ Imports between `src/` files are relative and extensionless.
   rotates refresh tokens is unknown. If it does, a refresh in one test
   could invalidate the next test's copy. It can't trigger today: a run
   takes seconds, the cache renews 120 s before the JWT expires, and no
-  test logs out. Logging out is covered by the `renew` rule above. If
+  test logs out. Logging out is covered by the `renew` rule in the
+  api-login skill. If
   rotation ever bites, the fix is one session per test.
 - Admin API login hasn't been tried. UI login as admin via Playwright MCP
   sent no sign-in request earlier, but `userRole: 'admin'` now signs in
