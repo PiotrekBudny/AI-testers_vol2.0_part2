@@ -1,10 +1,9 @@
 import type { Page, Route } from '@playwright/test';
 import type { Cart, CartItem } from '../models/cart';
 import type { Product } from '../models/product';
+import { apiRoutes } from './apiRoutes';
 
 export class CartItemsMock {
-  static readonly urlPattern = '**/api/v1/cart/items';
-
   readonly addedItems: CartItem[] = [];
 
   constructor(
@@ -14,9 +13,7 @@ export class CartItemsMock {
   ) {}
 
   async register(): Promise<void> {
-    await this.page.route(CartItemsMock.urlPattern, (route) =>
-      this.fulfill(route),
-    );
+    await this.page.route(apiRoutes.cartItems, (route) => this.fulfill(route));
   }
 
   private async fulfill(route: Route): Promise<void> {

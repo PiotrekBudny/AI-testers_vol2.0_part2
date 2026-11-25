@@ -8,10 +8,11 @@ import {
   type UserRole,
 } from '../config/users';
 import { ProductGenerator } from '../generators/productGenerator';
+import { readHar, sanitizeHar, writeHar } from '../har/harFile';
 import { CartItemsMock } from '../mocks/cartItemsMock';
-import { HarMock } from '../mocks/harMock';
-import { ProductSearchLiveMock } from '../mocks/productSearchLiveMock';
-import { ProductSearchMock } from '../mocks/productSearchMock';
+import { FakeProductSearchMock } from '../mocks/fakeProductSearchMock';
+import { HarReplayMock } from '../mocks/harReplayMock';
+import { LivePatchedProductSearchMock } from '../mocks/livePatchedProductSearchMock';
 import { DashboardPage } from '../pages/dashboardPage';
 import { LoginPage } from '../pages/loginPage';
 import { ProductsPage } from '../pages/productsPage';
@@ -28,10 +29,10 @@ type Fixtures = {
   loginPage: LoginPage;
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
-  productSearchMock: ProductSearchMock;
+  fakeProductSearchMock: FakeProductSearchMock;
   cartItemsMock: CartItemsMock;
-  harMock: HarMock;
-  productSearchLiveMock: ProductSearchLiveMock;
+  harReplayMock: HarReplayMock;
+  livePatchedProductSearchMock: LivePatchedProductSearchMock;
   loggedInUser: User | null;
 };
 
@@ -69,6 +70,7 @@ export const test = base.extend<Options & Fixtures>({
     if (!existsSync(harPath)) {
       return;
     }
+    writeHar(harPath, sanitizeHar(readHar(harPath)));
     await testInfo.attach('network.har', {
       path: harPath,
       contentType: 'application/json',
@@ -83,34 +85,38 @@ export const test = base.extend<Options & Fixtures>({
   productsPage: async ({ page }, use) => {
     await use(new ProductsPage(page));
   },
-  productSearchMock: async ({ page }, use) => {
-    const mock = new ProductSearchMock(
+  fakeProductSearchMock: async ({ page }, use) => {
+    const mock = new FakeProductSearchMock(
       page,
       new ProductGenerator().generateProducts(8),
     );
     await mock.register();
     await use(mock);
   },
-  cartItemsMock: async ({ page, loggedInUser, productSearchMock }, use) => {
+  cartItemsMock: async ({ page, loggedInUser, fakeProductSearchMock }, use) => {
     const mock = new CartItemsMock(
       page,
       loggedInUser?.username ?? '',
-      () => productSearchMock.products,
+      () => fakeProductSearchMock.products,
     );
     await mock.register();
     await use(mock);
   },
-  harMock: async ({ page, harUpdate }, use, testInfo) => {
-    const mock = new HarMock(
+  harReplayMock: async ({ page, harUpdate, baseURL }, use, testInfo) => {
+    if (baseURL === undefined) {
+      throw new Error('harReplayMock needs baseURL to replay a HAR');
+    }
+    const mock = new HarReplayMock(
       page,
       harUpdate,
-      testInfo.outputPath('har-update'),
+      testInfo.outputPath('har-work'),
+      baseURL,
     );
     await use(mock);
     await mock.finishRecording(testInfo.status === testInfo.expectedStatus);
   },
-  productSearchLiveMock: async ({ page }, use) => {
-    await use(new ProductSearchLiveMock(page));
+  livePatchedProductSearchMock: async ({ page }, use) => {
+    await use(new LivePatchedProductSearchMock(page));
   },
   loggedInUser: [
     async ({ userRole, loginPage, dashboardPage }, use) => {

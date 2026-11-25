@@ -1,12 +1,12 @@
-import type { Page, Route } from '@playwright/test';
+import type { APIResponse, Page, Route } from '@playwright/test';
 import type { ProductSearchResponse } from '../models/productSearchResponse';
-import { ProductSearchMock } from './productSearchMock';
+import { apiRoutes } from './apiRoutes';
 
 export type ProductSearchTransform = (
   realResponse: ProductSearchResponse,
 ) => ProductSearchResponse;
 
-export class ProductSearchLiveMock {
+export class LivePatchedProductSearchMock {
   readonly realResponses: ProductSearchResponse[] = [];
   readonly servedResponses: ProductSearchResponse[] = [];
   readonly errors: string[] = [];
@@ -14,7 +14,7 @@ export class ProductSearchLiveMock {
   constructor(private readonly page: Page) {}
 
   async register(transform: ProductSearchTransform): Promise<void> {
-    await this.page.route(ProductSearchMock.urlPattern, (route) =>
+    await this.page.route(apiRoutes.productSearch, (route) =>
       this.fulfill(route, transform),
     );
   }
@@ -33,19 +33,24 @@ export class ProductSearchLiveMock {
     route: Route,
     transform: ProductSearchTransform,
   ): Promise<void> {
-    const response = await route.fetch();
+    let response: APIResponse | undefined;
     try {
+      response = await route.fetch();
       if (!response.ok()) {
         throw new Error(`real search returned ${response.status()}`);
       }
       const realResponse = (await response.json()) as ProductSearchResponse;
-      this.realResponses.push(structuredClone(realResponse));
-      const served = transform(realResponse);
+      const served = transform(structuredClone(realResponse));
+      this.realResponses.push(realResponse);
       this.servedResponses.push(served);
       await route.fulfill({ response, json: served });
     } catch (error) {
       this.errors.push(error instanceof Error ? error.message : String(error));
-      await route.fulfill({ response });
+      if (response) {
+        await route.fulfill({ response });
+      } else {
+        await route.abort('failed');
+      }
     }
   }
 }

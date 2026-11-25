@@ -1,10 +1,9 @@
 import type { Page, Route } from '@playwright/test';
 import { ProductSearchResponseBuilder } from '../builders/productSearchResponseBuilder';
 import type { Product } from '../models/product';
+import { apiRoutes } from './apiRoutes';
 
-export class ProductSearchMock {
-  static readonly urlPattern = '**/api/v1/products/search**';
-
+export class FakeProductSearchMock {
   products: Product[];
 
   constructor(
@@ -15,7 +14,7 @@ export class ProductSearchMock {
   }
 
   async register(): Promise<void> {
-    await this.page.route(ProductSearchMock.urlPattern, (route) =>
+    await this.page.route(apiRoutes.productSearch, (route) =>
       this.fulfill(route),
     );
   }
