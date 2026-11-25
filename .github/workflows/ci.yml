@@ -54,6 +54,18 @@ jobs:
 
       - name: Run Playwright tests
         run: npm test
+        env:
+          BASE_URL: ${{ vars.BASE_URL }}
+          CLIENT_USERNAME: ${{ vars.CLIENT_USERNAME }}
+          CLIENT_PASSWORD: ${{ secrets.CLIENT_PASSWORD }}
+          CLIENT_DISPLAY_NAME: ${{ vars.CLIENT_DISPLAY_NAME }}
+          ADMIN_USERNAME: ${{ vars.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
+
+      - name: Annotate test results
+        if: ${{ !cancelled() }}
+        run: node .github/scripts/annotate-playwright-results.cjs
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
