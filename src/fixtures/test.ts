@@ -1,6 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import { getUser, type User, type UserRole } from '../config/users';
 import { ProductGenerator } from '../generators/productGenerator';
+import { CartItemsMock } from '../mocks/cartItemsMock';
 import { ProductSearchMock } from '../mocks/productSearchMock';
 import { DashboardPage } from '../pages/dashboardPage';
 import { LoginPage } from '../pages/loginPage';
@@ -15,6 +16,7 @@ type Fixtures = {
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
   productSearchMock: ProductSearchMock;
+  cartItemsMock: CartItemsMock;
   loggedInUser: User | null;
 };
 
@@ -33,6 +35,15 @@ export const test = base.extend<Options & Fixtures>({
     const mock = new ProductSearchMock(
       page,
       new ProductGenerator().generateProducts(8),
+    );
+    await mock.register();
+    await use(mock);
+  },
+  cartItemsMock: async ({ page, loggedInUser, productSearchMock }, use) => {
+    const mock = new CartItemsMock(
+      page,
+      loggedInUser?.username ?? '',
+      () => productSearchMock.products,
     );
     await mock.register();
     await use(mock);
