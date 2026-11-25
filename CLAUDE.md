@@ -40,8 +40,11 @@ src/
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productsPage.ts                     ProductsPage (/products)
+  fixtures/test.ts                          test/expect with page object + mock fixtures
+  mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 tests/                                      Playwright specs (testDir)
+  loginToProducts.spec.ts                   real login -> dashboard -> mocked products
 playwright.config.ts
 ```
 
@@ -135,8 +138,10 @@ Imports between `src/` files are relative and extensionless.
 - Parts shared across views (navigation, footer, toasts) live in
   `src/components/`, each scoped to its root test id. `BasePage` creates
   them, so every page has `.navigation`, `.footer` and `.toast`.
-- Not yet decided: whether tests get page objects through a Playwright
-  fixture or create them with `new`.
+- Tests get page objects through Playwright fixtures: import `test` and
+  `expect` from `src/fixtures/test.ts`, not from `@playwright/test`, and
+  take `loginPage`, `dashboardPage`, `productsPage` as test arguments. Every
+  new page object gets a fixture there.
 
 ### Rule: prefer `data-testid` locators
 
@@ -205,6 +210,14 @@ Imports between `src/` files are relative and extensionless.
     no quantity controls, and its Add to Cart button is disabled.
   - Rated products show `★ 4.5 (2)` in `product-rating`, unrated ones
     `No reviews yet`.
+  - `ProductCard.expectToShow(product)` checks a card against a `Product`:
+    name, link `/products/{id}`, description, price, category, rating,
+    image `alt`/`src` (`src` only when `imageUrl` isn't null), and stock
+    state. It assumes three things that haven't been seen yet:
+    - Prices use `en-US` USD formatting (`$1,299.99`); only `$349.99` has
+      been seen.
+    - Ratings show one decimal (`★ 4.0 (3)`); only `4.5` has been seen.
+    - In-stock cards start with quantity `1`.
   - With no results: `product-search-summary` reads `No matching products`,
     and `no-products-message` and `reset-search-button` ("Clear filters")
     appear. `clear-search` (✕) shows inside the search box once it has text.
@@ -230,6 +243,19 @@ Imports between `src/` files are relative and extensionless.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
+- Tests log in for real (`loginPage.loginAs(getUser('client'))`). Only the
+  product search endpoint is mocked.
+- **`ProductSearchMock`** (fixture `productSearchMock`): the fixture creates
+  it with 8 generated products and registers the route before the test
+  body runs. Its data can be changed afterwards:
+  - Replace `productSearchMock.products` or change it in place, or use
+    `updateProduct(id, changes)`. That method uses `Object.assign`, so it
+    doesn't re-derive dependent fields like the generator does.
+  - Every request builds its response from the current `products` with
+    `ProductSearchResponseBuilder`, using the request's `page` and `size`.
+    So changes apply to the next request, even after the page has loaded.
+  - It doesn't filter by `q`, `category`, price, rating or stock, or sort.
+    It serves `products` in their given order.
 - **`ProductSearchResponseBuilder`**:
   - `withProducts`/`withGeneratedProducts` take _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
@@ -240,12 +266,11 @@ Imports between `src/` files are relative and extensionless.
 
 ## Open questions / known gaps
 
-- `tests/example.spec.ts` is still Playwright's starter example (it hits
-  playwright.dev). Replace it with the first real mocked product-list test.
 - The shop requires login: opening `/` redirects to `/login` ("Sign in –
-  Awesome Testing"). Not yet decided how mocked tests get past it (mock the
-  auth calls, or set up a session first). Credentials for the live UI go in
-  `.env` as `CLIENT_*` / `ADMIN_*` (username, password, display name).
+  Awesome Testing"). Tests log in for real with credentials from `.env`
+  (`CLIENT_*` / `ADMIN_*`: username, password, display name). CI has no
+  `.env` and the workflow passes no credentials yet, so specs that log in
+  will fail on CI until GitHub secrets are added to `ci.yml`.
 - The admin account hasn't been mapped. Logging in with it via Playwright MCP
   sent no sign-in request (cause unknown), so admin-only navigation links or
   dashboard parts are missing from the page objects.
