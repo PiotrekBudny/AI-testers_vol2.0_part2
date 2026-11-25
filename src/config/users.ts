@@ -17,12 +17,31 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export function getUser(role: UserRole): User {
+function credentialVariables(role: UserRole) {
   const prefix = role.toUpperCase();
   return {
+    username: `${prefix}_USERNAME`,
+    password: `${prefix}_PASSWORD`,
+    displayName: `${prefix}_DISPLAY_NAME`,
+  };
+}
+
+export function hasCredentials(role: UserRole): boolean {
+  return Object.values(credentialVariables(role)).every(
+    (name) => !!process.env[name],
+  );
+}
+
+export function requireCredentials(role: UserRole): void {
+  getUser(role);
+}
+
+export function getUser(role: UserRole): User {
+  const variables = credentialVariables(role);
+  return {
     role,
-    username: requireEnv(`${prefix}_USERNAME`),
-    password: requireEnv(`${prefix}_PASSWORD`),
-    displayName: requireEnv(`${prefix}_DISPLAY_NAME`),
+    username: requireEnv(variables.username),
+    password: requireEnv(variables.password),
+    displayName: requireEnv(variables.displayName),
   };
 }
