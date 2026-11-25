@@ -1,7 +1,8 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { ProductCard } from '../components/productCard';
 import type { ProductCategory } from '../enums/productCategory';
 import type { ProductSortOption } from '../enums/productSortOption';
+import type { Product } from '../models/product';
 import type { Locators } from '../types/locators';
 import { BasePage } from './basePage';
 
@@ -90,6 +91,13 @@ export class ProductsPage extends BasePage {
 
   productAt(index: number): ProductCard {
     return new ProductCard(this.productItems.nth(index));
+  }
+
+  async expectToShowProducts(products: Product[]): Promise<void> {
+    await expect(this.productItems).toHaveCount(products.length);
+    for (const [index, product] of products.entries()) {
+      await this.productAt(index).expectToShow(product);
+    }
   }
 
   categoryCheckbox(category: ProductCategory): Locator {

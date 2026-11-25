@@ -44,7 +44,7 @@ src/
   mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 tests/                                      Playwright specs (testDir)
-  productsPage.spec.ts                      mocked product card on /products
+  productsPage.spec.ts                      all mocked products shown on /products
 playwright.config.ts
 ```
 
@@ -213,11 +213,17 @@ Imports between `src/` files are relative and extensionless.
   - `ProductCard.expectToShow(product)` checks a card against a `Product`:
     name, link `/products/{id}`, description, price, category, rating,
     image `alt`/`src` (`src` only when `imageUrl` isn't null), and stock
-    state. It assumes three things that haven't been seen yet:
-    - Prices use `en-US` USD formatting (`$1,299.99`); only `$349.99` has
-      been seen.
-    - Ratings show one decimal (`★ 4.0 (3)`); only `4.5` has been seen.
-    - In-stock cards start with quantity `1`.
+    state.
+  - `ProductsPage.expectToShowProducts(products)` checks the card count,
+    then each card in order by position (`productAt`), so duplicate
+    generated names don't matter. Cards show in the order the mock serves.
+  - `tests/productsPage.spec.ts` checks 12 unseeded generated products.
+    It passed 10 repeated runs (120 random products):
+    - Prices use `en-US` USD formatting (`$1,299.99`). Confirmed, since
+      about half the generated prices are over $1,000.
+    - Ratings with one decimal for whole numbers (`★ 4.0 (3)`) and the
+      out-of-stock state are rare in random data, so they may not have
+      come up.
   - With no results: `product-search-summary` reads `No matching products`,
     and `no-products-message` and `reset-search-button` ("Clear filters")
     appear. `clear-search` (✕) shows inside the search box once it has text.
