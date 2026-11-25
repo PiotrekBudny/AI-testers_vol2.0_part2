@@ -1,5 +1,11 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, type Page, type Response } from '@playwright/test';
+import {
+  expect,
+  type Page,
+  type Request,
+  type Response,
+} from '@playwright/test';
 import {
   pathAndQuery,
   readHar,
@@ -24,6 +30,11 @@ export class HarReplayMock {
     const committedPath = this.path(harName);
     const workPath = join(this.workDirectory, harName);
     if (!this.updating) {
+      if (!existsSync(committedPath)) {
+        throw new Error(
+          `No HAR at hars/${harName}. Check the name, or record it with UPDATE_HAR=true.`,
+        );
+      }
       writeHar(
         workPath,
         withOrigin(readHar(committedPath), new URL(this.baseURL).origin),
@@ -39,6 +50,25 @@ export class HarReplayMock {
     if (this.updating) {
       this.recordings.set(committedPath, workPath);
     }
+  }
+
+  waitForReplayedResponse(method: string, pathname: string): Promise<Response> {
+    const matches = (request: Request) =>
+      request.method() === method &&
+      new URL(request.url()).pathname === pathname;
+    const response = this.page.waitForResponse((candidate) =>
+      matches(candidate.request()),
+    );
+    const failure = this.page
+      .waitForEvent('requestfailed', matches)
+      .then((request): Response => {
+        throw new Error(
+          `${method} ${pathAndQuery(request.url())} failed (${request.failure()?.errorText ?? 'unknown'}). When replaying, the HAR has no entry for it: re-record with UPDATE_HAR=true.`,
+        );
+      });
+    response.catch(() => undefined);
+    failure.catch(() => undefined);
+    return Promise.race([response, failure]);
   }
 
   recordedJson<T>(

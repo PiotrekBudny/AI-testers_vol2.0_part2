@@ -23,14 +23,8 @@ export default defineConfig<Options>({
   },
   projects: [
     {
-      name: 'setup',
-      testMatch: /.*\.setup\.ts/,
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
       name: 'mockingTests',
       use: { ...devices['Desktop Chrome'] },
-      dependencies: ['setup'],
     },
   ],
 });

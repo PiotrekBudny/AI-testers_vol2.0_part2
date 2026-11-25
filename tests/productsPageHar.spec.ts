@@ -6,15 +6,13 @@ const productSearchHar = 'productSearch.har';
 const productSearchPath = '/api/v1/products/search';
 
 test('client sees products replayed from the recorded HAR file', async ({
-  page,
   productsPage,
   harReplayMock,
 }) => {
   await harReplayMock.serve(productSearchHar, apiRoutes.productSearch);
-  const searchResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === 'GET' &&
-      new URL(response.url()).pathname === productSearchPath,
+  const searchResponse = harReplayMock.waitForReplayedResponse(
+    'GET',
+    productSearchPath,
   );
 
   await productsPage.goto();

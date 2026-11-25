@@ -30,12 +30,14 @@ src/
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
-  config/authState.ts                       stored-session roles and storageState paths
+  api/authApi.ts                            AuthApi: POST /api/v1/users/signin
+  api/apiSessions.ts                        per-worker session cache, storageStateFor
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
   enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   models/product.ts                         Product (one search hit)
+  models/auth.ts                            LoginRequest, LoginResponse, ApiSession
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
@@ -53,7 +55,7 @@ src/
 hars/                                       committed HAR recordings, sanitized
   productSearch.har                         GET /api/v1/products/search?page=0&size=12
 tests/                                      Playwright specs (testDir)
-  auth.setup.ts                             setup project: log in once, save storageState
+  auth.spec.ts                              API session accepted by the app; skipAutoLogin
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageHar.spec.ts                   /products: replay from hars/productSearch.har
   productsPageLivePatched.spec.ts           /products: real search, first product patched
@@ -128,14 +130,17 @@ Imports between `src/` files are relative and extensionless.
 - `dotenv` loads `.env` (`quiet: true`). `.env.example` (committed) lists
   the variables: `BASE_URL`, then `CLIENT_USERNAME`, `CLIENT_PASSWORD`,
   `CLIENT_DISPLAY_NAME` and the same three `ADMIN_*` variables (a regular
-  customer account and an admin account). The real values go in `.env`
-  (git-ignored).
+  customer account and an admin account). Last comes `UPDATE_HAR=false`
+  (set it to `true` to re-record HARs). The real values go in `.env`
+  (git-ignored). A shell variable wins over `.env`, because dotenv doesn't
+  override variables that are already set.
+- `UPDATE_HAR` is **local only**: the config forces `harUpdate` off on CI.
+  So it's exempt from the rule that a new env variable must be added to
+  the GitHub repository settings and the CI step's `env:`.
 - `getUser(role)` in `src/config/users.ts` reads the account variables when
   called, not at import. It throws a clear error if one is missing, so
   specs that never log in run without them. Use
-  `loginPage.loginAs(getUser('client'))`. `hasCredentials(role)` checks
-  without throwing, and `requireCredentials(role)` throws the same error
-  without returning the user.
+  `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
 - On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
   reporters. `json` writes `test-results/results.json`, which feeds the CI
@@ -143,9 +148,7 @@ Imports between `src/` files are relative and extensionless.
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
-  locally. Projects (both Desktop Chrome): `setup` runs `*.setup.ts` and
-  stores login sessions, and `mockingTests` runs the specs and depends on
-  `setup`. The CI results annotation counts the setup test too.
+  locally. The single project is `mockingTests` (Desktop Chrome).
 - HAR recording is the `harRecording` option fixture, set in the config
   to `!isCI`, so it's **on locally only**. The config is typed
   `defineConfig<Options>` to accept it.
@@ -338,8 +341,8 @@ Imports between `src/` files are relative and extensionless.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
-- Login is real (once per run in the `setup` project, see stored
-  sessions below). The mocks cover only the endpoints a test asks for.
+- Login is real but goes through the API, once per worker (see API login
+  below). The mocks cover only the endpoints a test asks for.
 - Three kinds of product search mock. The class name starts with the
   kind, and each fixture and file is the class name in camelCase
   (`FakeProductSearchMock` → `fakeProductSearchMock`):
@@ -381,7 +384,9 @@ Imports between `src/` files are relative and extensionless.
   - In update mode it records into `test-results/<test>/har-work/`, not
     over the committed file. Playwright writes the HAR only when the
     context closes, so the fixture's teardown closes the context itself.
-    Only when the test **passed** does it copy the recording to `hars/`:
+    Only when the test **passed** (`testInfo.status === 'passed'`, so a
+    `test.fail()` test that fails never counts) does it copy the recording
+    to `hars/`:
     - It throws instead if the recording has no entries.
     - It cleans the file with `sanitizeHar` (`src/har/harFile.ts`): it
       removes the `authorization`, `cookie`, `set-cookie` and
@@ -395,6 +400,19 @@ Imports between `src/` files are relative and extensionless.
     `expectMatchesRecording(harName, response)` compares a Playwright
     `Response` with its recording, and does nothing in update mode, so the
     same test both records and replays.
+  - **`waitForReplayedResponse(method, pathname)`**: start it before the
+    navigation and await it after. Use it instead of
+    `page.waitForResponse`.
+    - When a request isn't in the HAR, replay aborts it, and an aborted
+      request never produces a response. A bare `waitForResponse` would
+      then wait out the whole test timeout.
+    - This helper races the response against `requestfailed` and fails
+      at once, naming the URL, for example
+      `GET /api/v1/products/search?page=0&size=12 failed (net::ERR_FAILED). When replaying, the HAR has no entry for it ...`.
+      Verified by changing the HAR's query.
+  - A missing or misspelled HAR name fails in `serve()` with
+    `No HAR at hars/<name>. Check the name, or record it with UPDATE_HAR=true.`
+    (verified).
   - Like the docs suggest, a HAR's JSON payloads can be edited by hand to
     shape the test data.
 - **`LivePatchedProductSearchMock`** (fixture
@@ -403,57 +421,84 @@ Imports between `src/` files are relative and extensionless.
   then `route.fulfill({ response, json })`.
   - The transform gets a clone, so it may change it in place.
   - `realResponses[i]` and `servedResponses[i]` always belong to the same
-    request, because both are pushed only after a successful transform.
-    `lastServed()` returns the last served one.
-  - The route is always completed and the error goes into `errors`:
+    request, because both are pushed only after `route.fulfill` succeeded.
+    So they list only responses the page actually got. `lastServed()`
+    returns the last served one.
+  - Only the fetch and the transform are inside the `try`, and the route
+    is completed exactly once. Errors go into `errors`:
     - When the real search isn't OK or the transform throws, it serves
       the real response unchanged.
     - When `route.fetch()` itself fails (network), it aborts the request.
+    - A failing final `route.fulfill` (for example, the page closed)
+      isn't retried. Its error is the route handler's own.
   - So the page never hangs on a pending request, and `lastServed()`
     reports the errors.
   - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
     search was served and that `errors` is empty.
-- **Stored sessions (`storageState`)**: the `setup` project
-  (`tests/auth.setup.ts`) logs in once per run for each role in
-  `storedSessionRoles` (`src/config/authState.ts`, currently only
-  `client`). It saves the session to `playwright/.auth/<role>.json`
-  (git-ignored, contains the JWT, never upload it). `mockingTests`
-  depends on `setup`.
-  - The app keeps the session in localStorage (`token`, `refreshToken`,
-    `clientSessionId`), with no cookies, so `storageState` captures it.
-    The JWT is valid for 1 hour (`exp - iat = 3600`).
-  - The `storageState` fixture override picks the file from `userRole`:
-    the stored file for a stored role, an empty state for `null`, and the
-    config value otherwise.
-  - For a stored role it first checks the credentials
-    (`requireCredentials`). Then `validStorageStatePath` checks that the
-    file exists and that the JWT's `exp` is more than 60 s away. A missing
-    or expired session fails at once with a message saying to re-run
-    `setup`, not later on an unrelated locator.
-  - Without a role's credentials the setup test is **skipped**, not
-    failed. Dependent projects still run after a skipped dependency, so
-    `userRole: null` specs pass without `.env`. Client specs fail with
-    `Missing environment variable CLIENT_USERNAME`.
-  - Why: one real login per test (8 at once on the shared account) made
-    sign-in hang on "Signing in..." past the 5 s wait, failing whole
-    parallel runs. Serial runs passed.
-  - Running a spec alone (`npx playwright test productsPageHar`) still
-    runs `setup` first. `--no-deps` skips it and reuses the saved file
-    while the token is valid.
-- **`loggedInUser`** is an `auto` fixture, so it runs before every test
-  without being requested. For a stored role it only yields the `User`,
-  because the context already has the session. For other roles (`admin`)
-  it logs in through `LoginPage` and waits until the navigation's profile
-  link shows the display name. A test then opens its page directly with
-  `goto()` (for example `productsPage.goto()`), not through the dashboard.
-  - `userRole` is an option fixture: `'client'` (default), `'admin'`
-    (unverified, see open questions), or `null` to stay logged out.
-    Set it per file or `describe` with `test.use({ userRole: ... })`.
-    Login page tests must use `null`.
-  - It yields the `User`, or `null` when logged out. Request it only when
-    the test needs the user's data.
-  - It's `auto` because a test that asked for it only to trigger login
-    would trip Biome's `noUnusedFunctionParameters`.
+- **API login (`loginViaApi`)**: tests don't log in through the UI.
+  - `AuthApi.signIn(user, baseURL)` (`src/api/authApi.ts`) sends
+    `POST /api/v1/users/signin` with `{username, password}`. The reference
+    is the Swagger spec (`LoginDto` → `LoginResponseDto`); HARs never
+    record sign-in.
+    - The response has `token` (JWT, valid 1 hour, `exp - iat = 3600`),
+      `refreshToken`, the profile, and `mfaRequired` / `challengeToken`.
+    - Sign-in throws on a non-2xx status, on `mfaRequired`, or when the
+      tokens are missing. The error never includes the password.
+  - **`apiSessions`** is a worker-scoped fixture. It owns one
+    `APIRequestContext` (no `baseURL`, absolute URLs) and an `ApiSessions`
+    cache (`src/api/apiSessions.ts`).
+    - The cache key is the **origin of the test's `baseURL` plus the
+      role**, so a `test.use({ baseURL })` override signs in on the same
+      host it stores the token for.
+    - That's **one sign-in per worker per host and role** (verified: 6
+      workers, 6 sign-ins).
+    - `get(role, baseURL)` signs in again when the cached JWT is within
+      120 s of `exp`. A failed sign-in is dropped, so the next test
+      retries.
+    - `renew(role, baseURL)` always signs in again and replaces the cached
+      session.
+  - **Rule:** tests in a worker share one cached session. A test that
+    logs out, or otherwise invalidates its token, must call
+    `apiSessions.renew(userRole, baseURL)` at its end, or later tests in
+    that worker get a dead token. No test logs out yet.
+  - **`loginViaApi`** is an `auto` test fixture. It yields the
+    `ApiSession` (`user`, `token`, `refreshToken`, `expiresAt`) for
+    `userRole`, or `null` with `skipAutoLogin`. Request it only when the
+    test needs the user's data (`loginViaApi?.user.displayName`). It's
+    `auto` because a test that asked for it only to trigger login would
+    trip Biome's `noUnusedFunctionParameters`.
+  - The **`storageState`** fixture override turns the session into
+    Playwright's in-memory storage state (`storageStateFor`). It puts
+    `token` and `refreshToken` in localStorage for the `baseURL` origin, so
+    the context starts logged in. Nothing is written to disk, and no init
+    script runs again on navigation.
+    - The app keeps its session only in localStorage (no cookies).
+      `clientSessionId` (a UUID, sent as `x-client-session-id`) is
+      created by the app itself on load, so it isn't injected. Verified:
+      the dashboard shows the display name with zero UI sign-in requests,
+      and localStorage then holds all three keys.
+  - Options: `userRole` is `'client'` (default) or `'admin'` (API login,
+    unverified). **`skipAutoLogin: true`** keeps the test logged out: no
+    sign-in, empty storage state. Login form tests must use it:
+    `test.use({ skipAutoLogin: true })`. It's the only way to stay logged
+    out, since `userRole: null` no longer exists.
+  - `tests/auth.spec.ts` guards the API login with two tests:
+    - The app accepts the injected session: no redirect to `/login`, and
+      the profile link shows the display name. If the app renames its
+      localStorage keys or rejects the token, this clearly named test
+      fails, not just vague locator timeouts elsewhere.
+    - `skipAutoLogin` lands on the login form. It also serves as the
+      usage example for the flag.
+  - Credentials are read only by a test that logs in, so `skipAutoLogin`
+    tests run without `.env`. Logged-in tests fail with
+    `Missing environment variable CLIENT_USERNAME` (verified).
+  - A test opens its page directly with `goto()` (for example
+    `productsPage.goto()`), not through the dashboard.
+  - History: one UI login per test (8 at once on the shared account) made
+    sign-in hang on "Signing in..." past the 5 s wait. A `setup` project
+    with a stored `playwright/.auth` file followed. Both were replaced by
+    API login, which needs no browser, no project dependency and no token
+    file.
 - **`FakeProductSearchMock`** (fixture `fakeProductSearchMock`): the
   fixture creates it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
@@ -492,15 +537,23 @@ Imports between `src/` files are relative and extensionless.
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
   individually.
-- All parallel workers share one stored session (same `token`,
-  `refreshToken`, `clientSessionId`). Whether the backend rotates refresh
-  tokens or ties state to `clientSessionId` is unknown. If it does,
-  parallel refreshes could log workers out. It can't trigger today: a run
-  takes seconds and the JWT lasts 1 hour, and an expired file is rejected
-  up front. If it ever shows up, store one session per worker (keyed by
-  `workerInfo.parallelIndex`).
-- One full parallel run reported 7 of 8 passed. The failing test wasn't
-  captured, and the next 6 runs passed 8/8. Watch for a recurring flake.
+- Tests in one worker share that worker's API session (same `token` and
+  `refreshToken`); workers have separate sessions. Whether the backend
+  rotates refresh tokens is unknown. If it does, a refresh in one test
+  could invalidate the next test's copy. It can't trigger today: a run
+  takes seconds, the cache renews 120 s before the JWT expires, and no
+  test logs out. Logging out is covered by the `renew` rule above. If
+  rotation ever bites, the fix is one session per test.
+- Admin API login hasn't been tried. UI login as admin via Playwright MCP
+  sent no sign-in request earlier, but `userRole: 'admin'` now signs in
+  through the API and may simply work.
+- A rare uncaptured flake: twice, one full parallel run had one failing
+  test (once with the UI-login setup, once right after the switch to API
+  login). Neither error was saved. Each time the following runs all passed,
+  including 28/28 with `--repeat-each=4`. Locally `retries` is 0 and the
+  trace is `on-first-retry`, so a one-off failure leaves no trace. To
+  catch it, run with `--retries=1` (records a trace) or
+  `--reporter=line` and keep the output.
 
 ## Commit messages: Conventional Commits
 

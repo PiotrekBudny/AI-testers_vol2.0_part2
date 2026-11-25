@@ -34,23 +34,22 @@ export class LivePatchedProductSearchMock {
     transform: ProductSearchTransform,
   ): Promise<void> {
     let response: APIResponse | undefined;
+    let realResponse: ProductSearchResponse;
+    let served: ProductSearchResponse;
     try {
       response = await route.fetch();
       if (!response.ok()) {
         throw new Error(`real search returned ${response.status()}`);
       }
-      const realResponse = (await response.json()) as ProductSearchResponse;
-      const served = transform(structuredClone(realResponse));
-      this.realResponses.push(realResponse);
-      this.servedResponses.push(served);
-      await route.fulfill({ response, json: served });
+      realResponse = (await response.json()) as ProductSearchResponse;
+      served = transform(structuredClone(realResponse));
     } catch (error) {
       this.errors.push(error instanceof Error ? error.message : String(error));
-      if (response) {
-        await route.fulfill({ response });
-      } else {
-        await route.abort('failed');
-      }
+      await (response ? route.fulfill({ response }) : route.abort('failed'));
+      return;
     }
+    await route.fulfill({ response, json: served });
+    this.realResponses.push(realResponse);
+    this.servedResponses.push(served);
   }
 }
