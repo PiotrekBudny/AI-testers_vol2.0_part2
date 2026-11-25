@@ -1,11 +1,8 @@
-import { getUser } from '../src/config/users';
 import { ProductCategory } from '../src/enums/productCategory';
 import { test } from '../src/fixtures/test';
 import { ProductGenerator } from '../src/generators/productGenerator';
 
-test('client sees mocked product after navigating from dashboard to products', async ({
-  loginPage,
-  dashboardPage,
+test('client sees mocked product on products page', async ({
   productsPage,
   productSearchMock,
 }) => {
@@ -21,9 +18,7 @@ test('client sees mocked product after navigating from dashboard to products', a
     reviewCount: 2,
   });
 
-  await loginPage.goto();
-  await loginPage.loginAs(getUser('client'));
-  await dashboardPage.buttons.products.click();
+  await productsPage.goto();
 
   await productsPage.product(mocked.name).expectToShow(mocked);
 });

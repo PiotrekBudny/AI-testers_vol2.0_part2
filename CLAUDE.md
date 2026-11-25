@@ -44,7 +44,7 @@ src/
   mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 tests/                                      Playwright specs (testDir)
-  loginToProducts.spec.ts                   real login -> dashboard -> mocked products
+  productsPage.spec.ts                      mocked product card on /products
 playwright.config.ts
 ```
 
@@ -243,8 +243,20 @@ Imports between `src/` files are relative and extensionless.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
-- Tests log in for real (`loginPage.loginAs(getUser('client'))`). Only the
-  product search endpoint is mocked.
+- Tests log in for real. Only the product search endpoint is mocked.
+- **`loggedInUser`** is an `auto` fixture, so it runs before every test
+  without being requested. It logs in through `LoginPage` as
+  `getUser(userRole)` and waits until the navigation's profile link shows
+  the display name. A test then opens its page directly with `goto()`
+  (for example `productsPage.goto()`), not through the dashboard.
+  - `userRole` is an option fixture: `'client'` (default), `'admin'`
+    (unverified, see open questions), or `null` to stay logged out.
+    Set it per file or `describe` with `test.use({ userRole: ... })`.
+    Login page tests must use `null`.
+  - It yields the `User`, or `null` when logged out. Request it only when
+    the test needs the user's data.
+  - It's `auto` because a test that asked for it only to trigger login
+    would trip Biome's `noUnusedFunctionParameters`.
 - **`ProductSearchMock`** (fixture `productSearchMock`): the fixture creates
   it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
