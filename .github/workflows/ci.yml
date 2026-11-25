@@ -63,6 +63,10 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_DISPLAY_NAME: ${{ vars.ADMIN_DISPLAY_NAME }}
 
+      - name: Annotate test results
+        if: ${{ !cancelled() }}
+        run: node .github/scripts/annotate-playwright-results.cjs
+
       - name: Upload Playwright report
         uses: actions/upload-artifact@v5
         if: ${{ !cancelled() }}
