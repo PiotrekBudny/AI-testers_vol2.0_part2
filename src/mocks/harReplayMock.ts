@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   expect,
@@ -6,56 +5,45 @@ import {
   type Request,
   type Response,
 } from '@playwright/test';
+import type { UserRole } from '../config/users';
+import { pathAndQuery, writeHar } from '../har/harFile';
 import {
-  pathAndQuery,
-  readHar,
-  sanitizeHar,
-  withOrigin,
-  writeHar,
-} from '../har/harFile';
+  findEntry,
+  harFromRecording,
+  type Recording,
+  readRecording,
+} from '../har/recording';
 
 export class HarReplayMock {
-  static readonly directory = join(__dirname, '..', '..', 'hars');
-
-  private readonly recordings = new Map<string, string>();
-
   constructor(
     private readonly page: Page,
-    readonly updating: boolean,
     private readonly workDirectory: string,
     private readonly baseURL: string,
+    private readonly userRole: UserRole,
   ) {}
 
-  async serve(harName: string, url: string | RegExp): Promise<void> {
-    const committedPath = this.path(harName);
-    const workPath = join(this.workDirectory, harName);
-    if (!this.updating) {
-      if (!existsSync(committedPath)) {
-        throw new Error(
-          `No HAR at hars/${harName}. Check the name, or record it with UPDATE_HAR=true.`,
-        );
-      }
-      writeHar(
-        workPath,
-        withOrigin(readHar(committedPath), new URL(this.baseURL).origin),
+  async serve(name: string): Promise<Recording> {
+    const recording = readRecording(name);
+    if (recording.capture.role !== this.userRole) {
+      throw new Error(
+        `${name} was recorded as ${recording.capture.role}, but this test runs as ${this.userRole}: add test.use({ userRole: '${recording.capture.role}' })`,
       );
     }
-    await this.page.routeFromHAR(workPath, {
-      url,
-      update: this.updating,
-      updateContent: 'embed',
-      updateMode: 'minimal',
+    const harPath = join(this.workDirectory, `${name}.har`);
+    writeHar(
+      harPath,
+      harFromRecording(recording, new URL(this.baseURL).origin),
+    );
+    await this.page.routeFromHAR(harPath, {
+      url: recording.capture.route,
       notFound: 'abort',
     });
-    if (this.updating) {
-      this.recordings.set(committedPath, workPath);
-    }
+    return recording;
   }
 
-  waitForReplayedResponse(method: string, pathname: string): Promise<Response> {
+  waitForReplayedResponse(method: string, url: string): Promise<Response> {
     const matches = (request: Request) =>
-      request.method() === method &&
-      new URL(request.url()).pathname === pathname;
+      request.method() === method && pathAndQuery(request.url()) === url;
     const response = this.page.waitForResponse((candidate) =>
       matches(candidate.request()),
     );
@@ -63,7 +51,7 @@ export class HarReplayMock {
       .waitForEvent('requestfailed', matches)
       .then((request): Response => {
         throw new Error(
-          `${method} ${pathAndQuery(request.url())} failed (${request.failure()?.errorText ?? 'unknown'}). When replaying, the HAR has no entry for it: re-record with UPDATE_HAR=true.`,
+          `${method} ${pathAndQuery(request.url())} failed (${request.failure()?.errorText ?? 'unknown'}). The recording has no entry for it: refresh it with the har-to-mock skill.`,
         );
       });
     response.catch(() => undefined);
@@ -71,58 +59,20 @@ export class HarReplayMock {
     return Promise.race([response, failure]);
   }
 
-  recordedJson<T>(
-    harName: string,
-    method: string,
-    pathAndQueryToFind: string,
-  ): T {
-    const entry = readHar(this.path(harName)).log.entries.find(
-      (candidate) =>
-        candidate.request.method === method &&
-        pathAndQuery(candidate.request.url) === pathAndQueryToFind,
-    );
-    const text = entry?.response.content.text;
-    if (text === undefined) {
-      throw new Error(
-        `${harName} has no ${method} ${pathAndQueryToFind} response`,
-      );
-    }
-    return JSON.parse(text) as T;
-  }
-
   async expectMatchesRecording(
-    harName: string,
+    recording: Recording,
     response: Response,
   ): Promise<void> {
-    if (this.updating) {
-      return;
-    }
-    expect(await response.json()).toEqual(
-      this.recordedJson(
-        harName,
-        response.request().method(),
-        pathAndQuery(response.url()),
-      ),
+    const entry = findEntry(
+      recording,
+      response.request().method(),
+      pathAndQuery(response.url()),
     );
-  }
-
-  async finishRecording(testPassed: boolean): Promise<void> {
-    if (this.recordings.size === 0 || !testPassed) {
-      return;
+    expect(response.status()).toBe(entry.status);
+    if (typeof entry.body === 'string') {
+      expect(await response.text()).toBe(entry.body);
+    } else {
+      expect(await response.json()).toEqual(entry.body);
     }
-    await this.page.context().close();
-    for (const [committedPath, workPath] of this.recordings) {
-      const har = readHar(workPath);
-      if (har.log.entries.length === 0) {
-        throw new Error(
-          `Recording for ${committedPath} has no entries; kept the committed file`,
-        );
-      }
-      writeHar(committedPath, sanitizeHar(har));
-    }
-  }
-
-  private path(harName: string): string {
-    return join(HarReplayMock.directory, harName);
   }
 }

@@ -19,7 +19,6 @@ export default defineConfig<Options>({
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',
     trace: isCI ? 'off' : 'on-first-retry',
     harRecording: !isCI,
-    harUpdate: !isCI && process.env.UPDATE_HAR === 'true',
   },
   projects: [
     {

@@ -35,3 +35,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Raw HAR captures from the har-to-mock skill (committed source: src/mocks/recorded)
+/hars/*.har

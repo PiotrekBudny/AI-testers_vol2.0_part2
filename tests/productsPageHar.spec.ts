@@ -1,25 +1,23 @@
 import { expect, test } from '../src/fixtures/test';
-import { apiRoutes } from '../src/mocks/apiRoutes';
+import { singleEntry } from '../src/har/recording';
 import type { ProductSearchResponse } from '../src/models/productSearchResponse';
 
-const productSearchHar = 'productSearch.har';
-const productSearchPath = '/api/v1/products/search';
-
-test('client sees products replayed from the recorded HAR file', async ({
+test('client sees products replayed from the recorded search', async ({
   productsPage,
   harReplayMock,
 }) => {
-  await harReplayMock.serve(productSearchHar, apiRoutes.productSearch);
+  const recording = await harReplayMock.serve('productSearch');
+  const entry = singleEntry(recording);
   const searchResponse = harReplayMock.waitForReplayedResponse(
-    'GET',
-    productSearchPath,
+    entry.method,
+    entry.url,
   );
 
   await productsPage.goto();
 
   const response = await searchResponse;
-  await harReplayMock.expectMatchesRecording(productSearchHar, response);
-  const body = (await response.json()) as ProductSearchResponse;
+  await harReplayMock.expectMatchesRecording(recording, response);
+  const body = entry.body as ProductSearchResponse;
   await productsPage.expectToShowProducts(body.content);
   await expect(productsPage.texts.countSummary).toContainText(
     String(body.totalElements),

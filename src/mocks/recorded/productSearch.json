@@ -1,0 +1,165 @@
+{
+  "name": "productSearch",
+  "capture": {
+    "page": "/products",
+    "route": "**/api/v1/products/search**",
+    "role": "client"
+  },
+  "entries": [
+    {
+      "method": "GET",
+      "url": "/api/v1/products/search?page=0&size=12",
+      "status": 200,
+      "contentType": "application/json",
+      "body": {
+        "content": [
+          {
+            "id": 8,
+            "name": "Sony WH-1000XM4",
+            "description": "Industry-leading noise canceling wireless headphones with exceptional sound",
+            "price": 349.99,
+            "stockQuantity": 85,
+            "category": "Audio",
+            "imageUrl": "/images/sony.png",
+            "createdAt": "2026-11-25T03:01:09.271445",
+            "updatedAt": "2026-11-25T03:01:09.271445",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 7,
+            "name": "Apple Watch Series 7",
+            "description": "Always-On Retina display, health monitoring, and fitness tracking",
+            "price": 399.99,
+            "stockQuantity": 60,
+            "category": "Wearables",
+            "imageUrl": "/images/applewatch.png",
+            "createdAt": "2026-11-25T03:01:09.271296",
+            "updatedAt": "2026-11-25T03:01:09.271297",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 6,
+            "name": "Clean Code",
+            "description": "A Handbook of Agile Software Craftsmanship by Robert C. Martin",
+            "price": 44.99,
+            "stockQuantity": 197,
+            "category": "Books",
+            "imageUrl": "/images/cleancode.png",
+            "createdAt": "2026-11-25T03:01:09.271141",
+            "updatedAt": "2026-11-25T21:55:12.749823",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 5,
+            "name": "Ninja Foodi 9-in-1",
+            "description": "Deluxe XL pressure cooker and air fryer with multiple cooking functions",
+            "price": 249.99,
+            "stockQuantity": 100,
+            "category": "Home & Kitchen",
+            "imageUrl": "/images/ninja.png",
+            "createdAt": "2026-11-25T03:01:09.27093",
+            "updatedAt": "2026-11-25T03:01:09.270931",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 4,
+            "name": "PlayStation 5",
+            "description": "Next-gen gaming console with 4K graphics, ray tracing, and ultra-high speed SSD",
+            "price": 499.99,
+            "stockQuantity": 30,
+            "category": "Gaming",
+            "imageUrl": "/images/ps5.png",
+            "createdAt": "2026-11-25T03:01:09.270673",
+            "updatedAt": "2026-11-25T03:01:09.270674",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 3,
+            "name": "MacBook Pro 14",
+            "description": "Apple M1 Pro chip, 16GB RAM, 512GB SSD, Liquid Retina XDR display",
+            "price": 1999.99,
+            "stockQuantity": 25,
+            "category": "Computers",
+            "imageUrl": "/images/mac.png",
+            "createdAt": "2026-11-25T03:01:09.270027",
+            "updatedAt": "2026-11-25T03:01:09.270028",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 2,
+            "name": "Samsung Galaxy S21",
+            "description": "5G smartphone with 8K video, all-day battery, and powerful performance",
+            "price": 799.99,
+            "stockQuantity": 75,
+            "category": "Electronics",
+            "imageUrl": "/images/samsung.png",
+            "createdAt": "2026-11-25T03:01:09.269735",
+            "updatedAt": "2026-11-25T03:01:09.269736",
+            "averageRating": null,
+            "reviewCount": 0
+          },
+          {
+            "id": 1,
+            "name": "iPhone 13 Pro",
+            "description": "Latest iPhone model with A15 Bionic chip, Pro camera system, and Super Retina XDR display",
+            "price": 999.99,
+            "stockQuantity": 50,
+            "category": "Electronics",
+            "imageUrl": "/images/iphone.png",
+            "createdAt": "2026-11-25T03:01:09.268768",
+            "updatedAt": "2026-11-25T03:01:09.268771",
+            "averageRating": null,
+            "reviewCount": 0
+          }
+        ],
+        "pageNumber": 0,
+        "pageSize": 12,
+        "totalElements": 8,
+        "totalPages": 1,
+        "facets": {
+          "categories": [
+            {
+              "value": "Electronics",
+              "count": 2
+            },
+            {
+              "value": "Audio",
+              "count": 1
+            },
+            {
+              "value": "Books",
+              "count": 1
+            },
+            {
+              "value": "Computers",
+              "count": 1
+            },
+            {
+              "value": "Gaming",
+              "count": 1
+            },
+            {
+              "value": "Home & Kitchen",
+              "count": 1
+            },
+            {
+              "value": "Wearables",
+              "count": 1
+            }
+          ],
+          "priceRange": {
+            "min": 44.99,
+            "max": 1999.99
+          },
+          "inStockCount": 8
+        }
+      }
+    }
+  ]
+}

@@ -18,7 +18,6 @@ export type Options = {
   userRole: UserRole;
   skipAutoLogin: boolean;
   harRecording: boolean;
-  harUpdate: boolean;
 };
 
 const harUrlFilter = /\/api\/v1\/(products|cart|currencies|users\/me)(\/|\?|$)/;
@@ -51,7 +50,6 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   userRole: ['client', { option: true }],
   skipAutoLogin: [false, { option: true }],
   harRecording: [false, { option: true }],
-  harUpdate: [false, { option: true }],
   apiSessions: [
     async ({ playwright }, use) => {
       const request = await playwright.request.newContext();
@@ -127,15 +125,15 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     await mock.register();
     await use(mock);
   },
-  harReplayMock: async ({ page, harUpdate, baseURL }, use, testInfo) => {
-    const mock = new HarReplayMock(
-      page,
-      harUpdate,
-      testInfo.outputPath('har-work'),
-      requireBaseURL(baseURL),
+  harReplayMock: async ({ page, baseURL, userRole }, use, testInfo) => {
+    await use(
+      new HarReplayMock(
+        page,
+        testInfo.outputPath('har-work'),
+        requireBaseURL(baseURL),
+        userRole,
+      ),
     );
-    await use(mock);
-    await mock.finishRecording(testInfo.status === 'passed');
   },
   livePatchedProductSearchMock: async ({ page }, use) => {
     await use(new LivePatchedProductSearchMock(page));

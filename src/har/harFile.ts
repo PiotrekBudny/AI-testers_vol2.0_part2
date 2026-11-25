@@ -7,21 +7,39 @@ export interface HarHeader {
 }
 
 export interface HarEntry {
+  startedDateTime?: string;
+  time?: number;
   request: {
     method: string;
     url: string;
     headers: HarHeader[];
     cookies?: unknown[];
+    httpVersion?: string;
+    queryString?: HarHeader[];
+    headersSize?: number;
+    bodySize?: number;
   };
   response: {
+    status?: number;
+    statusText?: string;
+    httpVersion?: string;
     headers: HarHeader[];
     cookies?: unknown[];
-    content: { text?: string };
+    content: { text?: string; mimeType?: string; size?: number };
+    redirectURL?: string;
+    headersSize?: number;
+    bodySize?: number;
   };
+  cache?: Record<string, unknown>;
+  timings?: Record<string, number>;
 }
 
 export interface Har {
-  log: { entries: HarEntry[] };
+  log: {
+    version?: string;
+    creator?: { name: string; version: string };
+    entries: HarEntry[];
+  };
 }
 
 const sensitiveHeaders = new Set([
@@ -46,14 +64,6 @@ export function sanitizeHar(har: Har): Har {
     entry.response.headers = safeHeaders(entry.response.headers);
     entry.request.cookies = [];
     entry.response.cookies = [];
-  }
-  return har;
-}
-
-export function withOrigin(har: Har, origin: string): Har {
-  for (const entry of har.log.entries) {
-    const url = new URL(entry.request.url);
-    entry.request.url = new URL(`${url.pathname}${url.search}`, origin).href;
   }
   return har;
 }
