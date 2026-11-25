@@ -72,8 +72,26 @@ Imports between `src/` files are relative and extensionless.
   forbids classes with only static members, so use instance methods).
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
-- CI (`.github/workflows/ci.yml`) runs on push/PR to `main`: `biome ci .` and
+- CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
+  on any branch through `workflow_dispatch`. It runs `biome ci .` and
   typecheck, then Playwright on Chromium, and uploads `playwright-report/`.
+- The GitHub ruleset "main: require CI" (Settings → Rules) makes both
+  jobs, `Lint & typecheck` and `Playwright tests`, required checks for
+  merging into `main`, and the PR branch must be up to date with `main`.
+  - Required checks match job `name:`s exactly, so renaming a job in
+    `ci.yml` means updating the ruleset too, or PRs wait forever.
+  - Repository admins can bypass it, which is the only way to push to
+    `main` directly.
+  - PRs from forks get no secrets, so their Playwright job fails.
+- The Playwright step gets the account settings from the GitHub repository:
+  `CLIENT_PASSWORD` and `ADMIN_PASSWORD` are **secrets**, while `BASE_URL`,
+  `*_USERNAME` and `*_DISPLAY_NAME` are plain **variables**. A new env
+  variable must be added both there and to the step's `env:`.
+- The repository is public, and so are its workflow artifacts. A Playwright
+  trace records `fill()` values, so a trace of a login contains the
+  password in plain text. Therefore traces are **off on CI** and
+  `on-first-retry` locally. Don't turn on traces, videos or anything else
+  that records typed input on CI while the report is uploaded.
 - `tsconfig.json` is type-check only: `module: nodenext`, `types: ["node"]`,
   `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
 - `.gitattributes` forces LF line endings.
@@ -94,13 +112,14 @@ Imports between `src/` files are relative and extensionless.
   (git-ignored).
 - `getUser(role)` in `src/config/users.ts` reads the account variables when
   called, not at import. It throws a clear error if one is missing, so
-  specs that never log in run without them (CI has none set). Use
+  specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))`.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
 - On CI: `retries: 2`, `forbidOnly`, and the `html` reporter. Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
-- `trace: 'on-first-retry'`. The single project is `mockingTests` (Desktop Chrome).
+- `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
+  locally. The single project is `mockingTests` (Desktop Chrome).
 
 ## API facts: `GET /api/v1/products/search`
 
@@ -319,9 +338,8 @@ Imports between `src/` files are relative and extensionless.
 
 - The shop requires login: opening `/` redirects to `/login` ("Sign in –
   Awesome Testing"). Tests log in for real with credentials from `.env`
-  (`CLIENT_*` / `ADMIN_*`: username, password, display name). CI has no
-  `.env` and the workflow passes no credentials yet, so specs that log in
-  will fail on CI until GitHub secrets are added to `ci.yml`.
+  (`CLIENT_*` / `ADMIN_*`: username, password, display name). On CI they
+  come from repository secrets and variables.
 - The admin account hasn't been mapped. Logging in with it via Playwright MCP
   sent no sign-in request (cause unknown), so admin-only navigation links or
   dashboard parts are missing from the page objects.
