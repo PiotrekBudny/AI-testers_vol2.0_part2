@@ -11,7 +11,9 @@ export default defineConfig({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   // Never open the report server locally: it would block the pre-commit hook.
-  reporter: isCI ? 'html' : [['list'], ['html', { open: 'never' }]],
+  reporter: isCI
+    ? [['html'], ['json', { outputFile: 'test-results/results.json' }]]
+    : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',
     trace: isCI ? 'off' : 'on-first-retry',
