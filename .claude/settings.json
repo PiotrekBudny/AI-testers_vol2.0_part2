@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-Content *)",
+      "PowerShell(Select-String *)",
+      "PowerShell(npm run typecheck)",
+      "Bash(npm run typecheck)",
+      "PowerShell(npm -v)",
+      "PowerShell(Get-ChildItem)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Select-Object *)"
+    ]
+  }
+}

@@ -55,6 +55,12 @@ Imports between `src/` files are relative and extensionless.
   `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`.
 - `.gitattributes` forces LF line endings.
 - `package.json` has `"type": "commonjs"` and `"private": true`.
+- `.mcp.json` registers the Playwright MCP server (`@playwright/mcp@latest`,
+  deliberately unpinned as a dev-only tool, launched via `cmd /c npx` because
+  of Windows) for exploring the live UI from Claude Code. Claude Code asks
+  each user to approve project MCP servers on first use. The server writes
+  snapshots and console logs to `.playwright-mcp/` (git-ignored).
+- `.claude/settings.json` holds a shared allowlist of read-only commands.
 
 ## Playwright config
 
