@@ -75,6 +75,15 @@ Imports between `src/` files are relative and extensionless.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
   on any branch through `workflow_dispatch`. It runs `biome ci .` and
   typecheck, then Playwright on Chromium, and uploads `playwright-report/`.
+- After the tests, unless the run was cancelled, the "Annotate test
+  results" step runs `.github/scripts/annotate-playwright-results.cjs`.
+  It reads the totals in `test-results/results.json` and writes one
+  annotation on the run, titled "Playwright results", like
+  `4 tests: 4 passed, 0 failed, 0 flaky, 0 skipped (13.3 s)`:
+  - `error` level when any test failed, `warning` when any was flaky,
+    otherwise `notice`.
+  - A `warning` when the file is missing (the tests never got to run).
+  - It takes an optional results file path for trying it out locally.
 - The GitHub ruleset "main: require CI" (Settings → Rules) makes both
   jobs, `Lint & typecheck` and `Playwright tests`, required checks for
   merging into `main`, and the PR branch must be up to date with `main`.
@@ -115,7 +124,9 @@ Imports between `src/` files are relative and extensionless.
   specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))`.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
-- On CI: `retries: 2`, `forbidOnly`, and the `html` reporter. Locally:
+- On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
+  reporters. `json` writes `test-results/results.json`, which feeds the CI
+  results annotation. Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
