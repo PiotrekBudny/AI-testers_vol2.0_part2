@@ -33,9 +33,12 @@ export class ProductGenerator {
   }
 
   /** Generates `count` products with unique ids, newest first (like the API). */
-  generateProducts(count: number, overrides: Partial<Product> = {}): Product[] {
+  generateProducts(
+    count: number,
+    overrides: Omit<Partial<Product>, 'id'> = {},
+  ): Product[] {
     return Array.from({ length: count }, (_, index) =>
-      this.generateProduct({ id: count - index, ...overrides }),
+      this.generateProduct({ ...overrides, id: count - index }),
     );
   }
 }

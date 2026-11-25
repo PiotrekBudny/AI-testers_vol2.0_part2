@@ -27,7 +27,10 @@ export class ProductSearchResponseBuilder {
     return this;
   }
 
-  withGeneratedProducts(count: number, overrides: Partial<Product> = {}): this {
+  withGeneratedProducts(
+    count: number,
+    overrides: Omit<Partial<Product>, 'id'> = {},
+  ): this {
     this.products = new ProductGenerator().generateProducts(count, overrides);
     return this;
   }
