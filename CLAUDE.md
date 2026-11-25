@@ -26,15 +26,33 @@ Playwright + TypeScript end-to-end tests for the shop at
 ```
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
+  components/footer.ts                      Footer (shared on every view)
+  components/navigationBar.ts               NavigationBar (top menu, logged out and in)
+  components/productCard.ts                 ProductCard (one product-item in the list)
+  components/toast.ts                       Toast (notification viewport)
+  config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
+  enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   models/product.ts                         Product (one search hit)
   models/productSearchResponse.ts           response, facets, price range types
+  pages/basePage.ts                         abstract BasePage (url, goto, shared components)
+  pages/dashboardPage.ts                    DashboardPage (/ after login)
+  pages/loginPage.ts                        LoginPage page object (/login)
+  pages/productsPage.ts                     ProductsPage (/products)
+  types/locators.ts                         Locators<K> type for locator groups
 tests/                                      Playwright specs (testDir)
 playwright.config.ts
 ```
 
 Imports between `src/` files are relative and extensionless.
+
+## Rule: no comments in code
+
+- Don't write comments (`//`, `/* */`, `/** */`) in source, test or config
+  files. Make the code say it through names and types instead.
+- Knowledge that would have gone into a comment (app behaviour, API quirks,
+  reasons for a choice) goes into this file.
 
 ## Tooling and commands
 
@@ -64,8 +82,15 @@ Imports between `src/` files are relative and extensionless.
 
 ## Playwright config
 
-- `dotenv` loads `.env` (`quiet: true`). `.env.example` lists the variables,
-  and both files are currently empty.
+- `dotenv` loads `.env` (`quiet: true`). `.env.example` (committed) lists
+  the variables: `BASE_URL`, then `CLIENT_USERNAME`, `CLIENT_PASSWORD`,
+  `CLIENT_DISPLAY_NAME` and the same three `ADMIN_*` variables (a regular
+  customer account and an admin account). The real values go in `.env`
+  (git-ignored).
+- `getUser(role)` in `src/config/users.ts` reads the account variables when
+  called, not at import. It throws a clear error if one is missing, so
+  specs that never log in run without them (CI has none set). Use
+  `loginPage.loginAs(getUser('client'))`.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
 - On CI: `retries: 2`, `forbidOnly`, and the `html` reporter. Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
@@ -98,6 +123,99 @@ Imports between `src/` files are relative and extensionless.
   Home & Kitchen, Wearables.
 - Known image paths: `/images/{iphone,samsung,mac,ps5,ninja,cleancode,applewatch,sony}.png`.
 
+## Page objects
+
+- One class per view in `src/pages/`, constructed with `new XPage(page)`,
+  exposing `readonly` locators plus action methods (`login`).
+- Every page extends the abstract `BasePage`. It holds `page`, the shared
+  components and `goto()`, which opens `this.url`.
+- Each page declares its exact URL path in its own class:
+  `readonly url = '/login'`. Paths are relative to `baseURL`, so
+  `BASE_URL` still picks the environment. Don't override `goto()` per page.
+- Parts shared across views (navigation, footer, toasts) live in
+  `src/components/`, each scoped to its root test id. `BasePage` creates
+  them, so every page has `.navigation`, `.footer` and `.toast`.
+- Not yet decided: whether tests get page objects through a Playwright
+  fixture or create them with `new`.
+
+### Rule: prefer `data-testid` locators
+
+- Always locate with `page.getByTestId(...)` when the element has a
+  `data-testid`. The app has stable test ids on practically every element
+  (for example `login-username-input`, `login-submit-button`).
+- Only without a test id, fall back to `getByRole` / `getByLabel` /
+  `getByText`, in that order.
+- Never use CSS classes (they're hashed or Tailwind utilities) or XPath.
+- Scope a component's locators to its root (`this.root.getByTestId(...)`).
+- Don't use generated ids (for example `toast-<timestamp>-<random>`). Reach
+  the element through a stable parent instead.
+
+### Rule: group locators of the same kind
+
+- When a page object has more than one locator of the same kind, put them
+  in a named group instead of separate fields: `buttons`, `links`,
+  `inputs`, `selects`, `errors`, `headings`, `texts`, or a more specific
+  name when it reads better (`menuLinks`, `features`). Keys are short
+  camelCase names without the kind suffix: `buttons.signIn`, not
+  `signInButton`.
+- A single locator of its kind stays a plain field (`form`, `root`,
+  `userEmail`, `closeButton`).
+- Type groups with `Locators<'a' | 'b'>` from `src/types/locators.ts` and
+  assign them in the constructor. Field initializers can't use `this.page`
+  (TS2729, because of parameter properties), and the declared keys make
+  TypeScript flag missing or misspelled entries.
+- When two groups share keys (one card and one button per feature), define a
+  key type once (`type Feature = ...`) and reuse it.
+
+### App facts for page objects
+
+- Toasts render in `toast-viewport`. Each toast `li` has a generated id
+  (`toast-<timestamp>-<random>`), so use `toast-title`/`toast-description`
+  inside the viewport.
+- Login form: an empty submit shows `Username is required` / `Password is
+  required` and sets `aria-invalid`. Wrong credentials make
+  `POST /api/v1/users/signin` return `422`, with the toast `Error` /
+  `Invalid username/password`.
+- After a successful login the app lands on `/` ("Home – Awesome Testing",
+  test ids `home-*`), modelled as `DashboardPage`. The page load calls
+  `GET /api/v1/users/me`, `/api/v1/cart` and `/api/v1/currencies`. The
+  display name is the navigation's `username-profile-link`. The heading
+  shows only the first name (`Welcome, Alice!`).
+- Navigation: `links.login`/`links.register` show only when logged out.
+  `links.cart`, `links.profile` (leads to `/profile`), `menuLinks`,
+  `selects` and `buttons` show only when logged in. It's mapped for the
+  desktop layout as a client; admins may see more links.
+- Products page (`/products`, "Products – Awesome Testing"), modelled as
+  `ProductsPage`:
+  - Every product card repeats the same test ids (`product-item`,
+    `product-name`, …), with no id in them. `ProductCard` is scoped to one
+    card. Get one with `productsPage.product(name)` (exact name match) or
+    `productsPage.productAt(index)`.
+  - Category test ids use a slug of the name: lowercase, spaces become `-`,
+    `&` is kept (`products-category-home-&-kitchen`,
+    `products-category-count-home-&-kitchen`). Use `categoryCheckbox(cat)` /
+    `categoryCount(cat)` with the `ProductCategory` enum.
+  - The sort `<select>` uses hyphens (`price-asc`), while the API's `sort`
+    parameter uses underscores (`price_asc`). `ProductSortOption` holds the
+    UI values.
+  - The URL's `?page=` is 1-based (`?page=2` is the second page), while the
+    API's `page` is 0-based. Pagination (`product-pagination-prev/-status/-next`,
+    status `Page 2 of 3`) only renders when there is more than one page.
+  - An out-of-stock card shows `product-out-of-stock` ("Out of stock"), has
+    no quantity controls, and its Add to Cart button is disabled.
+  - Rated products show `★ 4.5 (2)` in `product-rating`, unrated ones
+    `No reviews yet`.
+  - With no results: `product-search-summary` reads `No matching products`,
+    and `no-products-message` and `reset-search-button` ("Clear filters")
+    appear. `clear-search` (✕) shows inside the search box once it has text.
+  - When the search request returns `500`, the list stays on
+    `product-list-loading` ("Loading products...") for at least 2 s,
+    probably while the app retries. No error state has been seen.
+  - The "WebMCP · Agent interface" panel (`shop-tool-*`) on the page isn't
+    modelled.
+  - `ProductSearchResponseBuilder` output renders correctly on this page
+    (checked with a throwaway mocked test).
+
 ## Mocking conventions
 
 - **`ProductGenerator`** (`new ProductGenerator(seed?)`) has its own Faker
@@ -126,8 +244,11 @@ Imports between `src/` files are relative and extensionless.
   playwright.dev). Replace it with the first real mocked product-list test.
 - The shop requires login: opening `/` redirects to `/login` ("Sign in –
   Awesome Testing"). Not yet decided how mocked tests get past it (mock the
-  auth calls, or set up a session first). Credentials for exploring the live
-  UI go in `.env`; variable names are still to be defined.
+  auth calls, or set up a session first). Credentials for the live UI go in
+  `.env` as `CLIENT_*` / `ADMIN_*` (username, password, display name).
+- The admin account hasn't been mapped. Logging in with it via Playwright MCP
+  sent no sign-in request (cause unknown), so admin-only navigation links or
+  dashboard parts are missing from the page objects.
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
