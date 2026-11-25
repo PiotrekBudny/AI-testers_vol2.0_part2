@@ -124,8 +124,10 @@ Imports between `src/` files are relative and extensionless.
 
 - `tests/example.spec.ts` is still Playwright's starter example (it hits
   playwright.dev). Replace it with the first real mocked product-list test.
-- Unknown whether the product list UI requires login. Credentials would go
-  in `.env`.
+- The shop requires login: opening `/` redirects to `/login` ("Sign in –
+  Awesome Testing"). Not yet decided how mocked tests get past it (mock the
+  auth calls, or set up a session first). Credentials for exploring the live
+  UI go in `.env`; variable names are still to be defined.
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
