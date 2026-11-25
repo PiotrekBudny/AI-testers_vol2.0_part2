@@ -30,6 +30,7 @@ src/
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
+  config/authState.ts                       stored-session roles and storageState paths
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
   enums/productSortOption.ts                sort <select> option values in the UI
@@ -43,10 +44,17 @@ src/
   pages/productsPage.ts                     ProductsPage (/products)
   fixtures/test.ts                          test/expect with page object + mock fixtures
   mocks/cartItemsMock.ts                    route mock for POST /api/v1/cart/items
+  mocks/harMock.ts                          HarMock: record/replay HAR files (routeFromHAR)
+  mocks/productSearchLiveMock.ts            real search response, patched on the fly
   mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
+hars/                                       committed HAR recordings, sanitized
+  productSearch.har                         GET /api/v1/products/search?page=0&size=12
 tests/                                      Playwright specs (testDir)
+  auth.setup.ts                             setup project: log in once, save storageState
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
+  productsPageHar.spec.ts                   /products: replay from HAR, real response patched
+  productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
 ```
 
@@ -122,7 +130,9 @@ Imports between `src/` files are relative and extensionless.
 - `getUser(role)` in `src/config/users.ts` reads the account variables when
   called, not at import. It throws a clear error if one is missing, so
   specs that never log in run without them. Use
-  `loginPage.loginAs(getUser('client'))`.
+  `loginPage.loginAs(getUser('client'))`. `hasCredentials(role)` checks
+  without throwing, and `requireCredentials(role)` throws the same error
+  without returning the user.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
 - On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
   reporters. `json` writes `test-results/results.json`, which feeds the CI
@@ -130,7 +140,24 @@ Imports between `src/` files are relative and extensionless.
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
-  locally. The single project is `mockingTests` (Desktop Chrome).
+  locally. Projects (both Desktop Chrome): `setup` runs `*.setup.ts` and
+  stores login sessions, and `mockingTests` runs the specs and depends on
+  `setup`. The CI results annotation counts the setup test too.
+- HAR recording is the `harRecording` option fixture, set in the config
+  to `!isCI`, so it's **on locally only**. The config is typed
+  `defineConfig<Options>` to accept it.
+  - The fixture overrides the built-in `contextOptions` with `recordHar`,
+    so every test (and every retry) writes its own
+    `test-results/<test>/network.har` and attaches it to the HTML report
+    (skipped when no file was written, for example when the context never
+    opened).
+  - `harUrlFilter` is an **allowlist**: `/api/v1/` `products`, `cart`,
+    `currencies` and `users/me` only. Auth endpoints (sign-in, a token
+    refresh, register) are never recorded, so passwords and refresh tokens
+    stay out. Add an endpoint there when a test needs it in the HAR.
+  - The HAR still contains bearer tokens in `Authorization` headers: strip
+    them before committing a HAR anywhere. Don't turn it on for CI while
+    the report is uploaded.
 
 ## API facts: `GET /api/v1/products/search`
 
@@ -306,12 +333,87 @@ Imports between `src/` files are relative and extensionless.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
-- Tests log in for real. Only the product search endpoint is mocked.
+- Login is real (once per run in the `setup` project, see stored
+  sessions below). The mocks cover only the endpoints a test asks for.
+- `productSearchMock` isn't `auto`: a test that doesn't request it hits
+  the real API. `tests/productsPageLive.spec.ts` does this on purpose. It
+  waits for the real `GET /api/v1/products/search` response and checks
+  the cards against its `content`, so it doesn't depend on fixed seed
+  data. Locally its HAR (`users/me`, `cart`, `currencies`,
+  `products/search?page=0&size=12`) is a real-traffic source for building
+  HAR mocks. It runs on CI too, against the live API, without a HAR.
+- **`HarMock`** (fixture `harMock`) wraps `page.routeFromHAR` from the
+  Playwright docs ("Mocking with HAR files"):
+  - `serve(harName, url)` serves requests matching `url` from
+    `hars/<harName>`. Unmatched entries are aborted (`notFound: 'abort'`).
+    Replay matches URL (with query) and method strictly, and POST bodies
+    strictly. When several entries match, the one with the most matching
+    headers wins.
+  - **Re-recording:** set `UPDATE_HAR=true` (`$env:UPDATE_HAR='true'` in
+    PowerShell) and run the spec. The `harUpdate` option (config:
+    `!isCI && UPDATE_HAR === 'true'`, so never on CI) makes it call the real
+    API and overwrite the file, with `updateMode: 'minimal'` and
+    `updateContent: 'embed'`.
+  - In update mode it records into `test-results/<test>/har-update/`, not
+    over the committed file. Playwright writes the HAR only when the
+    context closes, so the fixture's teardown closes the context itself.
+    Only when the test **passed** does it copy the recording to `hars/`:
+    - It throws instead if the recording has no entries.
+    - It removes the `authorization`, `cookie`, `set-cookie` and
+      `x-client-session-id` headers, empties the `cookies` arrays and
+      pretty-prints the file.
+    - A failed or timed-out re-record leaves the committed HAR untouched
+      (verified with forced timeouts).
+    - Check the diff before committing a re-recorded HAR.
+  - `recordedJson(harName, method, pathAndQuery)` reads a recorded response
+    body, matching path **and query** like replay does.
+    `expectMatchesRecording(harName, response)` compares a Playwright
+    `Response` with its recording, and does nothing in update mode, so the
+    same test both records and replays.
+  - Like the docs suggest, a HAR's JSON payloads can be edited by hand to
+    shape the test data.
+- **`ProductSearchLiveMock`** (fixture `productSearchLiveMock`) uses the
+  docs' "modify API responses" pattern: `route.fetch()` the real search,
+  apply `register(transform)`, then `route.fulfill({ response, json })`.
+  It keeps `realResponses` (copies taken before the transform) and
+  `servedResponses`. `lastServed()` returns the last one. The transform
+  can change the response in place, since the real copy is cloned first.
+  When the real search isn't OK or the transform throws, it serves the
+  real response unchanged and records the message in `errors`. The page
+  then doesn't hang, and `lastServed()` reports the errors.
+- **Stored sessions (`storageState`)**: the `setup` project
+  (`tests/auth.setup.ts`) logs in once per run for each role in
+  `storedSessionRoles` (`src/config/authState.ts`, currently only
+  `client`). It saves the session to `playwright/.auth/<role>.json`
+  (git-ignored, contains the JWT, never upload it). `mockingTests`
+  depends on `setup`.
+  - The app keeps the session in localStorage (`token`, `refreshToken`,
+    `clientSessionId`), with no cookies, so `storageState` captures it.
+    The JWT is valid for 1 hour (`exp - iat = 3600`).
+  - The `storageState` fixture override picks the file from `userRole`:
+    the stored file for a stored role, an empty state for `null`, and the
+    config value otherwise.
+  - For a stored role it first checks the credentials
+    (`requireCredentials`). Then `validStorageStatePath` checks that the
+    file exists and that the JWT's `exp` is more than 60 s away. A missing
+    or expired session fails at once with a message saying to re-run
+    `setup`, not later on an unrelated locator.
+  - Without a role's credentials the setup test is **skipped**, not
+    failed. Dependent projects still run after a skipped dependency, so
+    `userRole: null` specs pass without `.env`. Client specs fail with
+    `Missing environment variable CLIENT_USERNAME`.
+  - Why: one real login per test (8 at once on the shared account) made
+    sign-in hang on "Signing in..." past the 5 s wait, failing whole
+    parallel runs. Serial runs passed.
+  - Running a spec alone (`npx playwright test productsPageHar`) still
+    runs `setup` first. `--no-deps` skips it and reuses the saved file
+    while the token is valid.
 - **`loggedInUser`** is an `auto` fixture, so it runs before every test
-  without being requested. It logs in through `LoginPage` as
-  `getUser(userRole)` and waits until the navigation's profile link shows
-  the display name. A test then opens its page directly with `goto()`
-  (for example `productsPage.goto()`), not through the dashboard.
+  without being requested. For a stored role it only yields the `User`,
+  because the context already has the session. For other roles (`admin`)
+  it logs in through `LoginPage` and waits until the navigation's profile
+  link shows the display name. A test then opens its page directly with
+  `goto()` (for example `productsPage.goto()`), not through the dashboard.
   - `userRole` is an option fixture: `'client'` (default), `'admin'`
     (unverified, see open questions), or `null` to stay logged out.
     Set it per file or `describe` with `test.use({ userRole: ... })`.
@@ -358,6 +460,15 @@ Imports between `src/` files are relative and extensionless.
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
   individually.
+- All parallel workers share one stored session (same `token`,
+  `refreshToken`, `clientSessionId`). Whether the backend rotates refresh
+  tokens or ties state to `clientSessionId` is unknown. If it does,
+  parallel refreshes could log workers out. It can't trigger today: a run
+  takes seconds and the JWT lasts 1 hour, and an expired file is rejected
+  up front. If it ever shows up, store one session per worker (keyed by
+  `workerInfo.parallelIndex`).
+- One full parallel run reported 7 of 8 passed. The failing test wasn't
+  captured, and the next 6 runs passed 8/8. Watch for a recurring flake.
 
 ## Commit messages: Conventional Commits
 
