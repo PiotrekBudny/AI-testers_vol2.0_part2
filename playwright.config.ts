@@ -14,7 +14,7 @@ export default defineConfig({
   reporter: isCI ? 'html' : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',
-    trace: 'on-first-retry',
+    trace: isCI ? 'off' : 'on-first-retry',
   },
   projects: [
     {
