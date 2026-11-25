@@ -134,7 +134,8 @@ Imports between `src/` files are relative and extensionless.
   `.playwright-mcp/api-login.js` for `browser_run_code_unsafe`, so the
   password never appears in MCP tool arguments. **har-to-mock** captures
   real traffic locally into recordings for HAR replay tests (see
-  `HarReplayMock` below).
+  `HarReplayMock` below). **admin-login** covers acting as `ROLE_ADMIN` in
+  tests and in Playwright MCP, including the live-write rules.
 
 ## Playwright config
 
@@ -463,9 +464,14 @@ Imports between `src/` files are relative and extensionless.
   Awesome Testing"). Tests log in for real with credentials from `.env`
   (`CLIENT_*` / `ADMIN_*`: username, password, display name). On CI they
   come from repository secrets and variables.
-- The admin account hasn't been mapped. Logging in with it via Playwright MCP
-  sent no sign-in request (cause unknown), so admin-only navigation links or
-  dashboard parts are missing from the page objects.
+- Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
+  admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
+  modelled in code yet: no `warehouse`/`admin` menu links in
+  `NavigationBar`, no admin page objects, no admin specs. The
+  **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
+  mapped test ids, the admin-only endpoints and the agreed rules for admin
+  tests (separate `tests/admin*.spec.ts`, live writes only on self-created
+  prefixed data with cleanup, MCP writes only with the user's OK).
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
@@ -478,9 +484,6 @@ Imports between `src/` files are relative and extensionless.
   test logs out. Logging out is covered by the `renew` rule in the
   api-login skill. If
   rotation ever bites, the fix is one session per test.
-- Admin API login hasn't been tried. UI login as admin via Playwright MCP
-  sent no sign-in request earlier, but `userRole: 'admin'` now signs in
-  through the API and may simply work.
 - A rare uncaptured flake: twice, one full parallel run had one failing
   test (once with the UI-login setup, once right after the switch to API
   login). Neither error was saved. Each time the following runs all passed,
