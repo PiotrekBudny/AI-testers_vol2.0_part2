@@ -11,3 +11,14 @@ test('client sees all mocked products on products page', async ({
 
   await productsPage.expectToShowProducts(productSearchMock.products);
 });
+
+test('client sees empty state when search returns no products', async ({
+  productsPage,
+  productSearchMock,
+}) => {
+  productSearchMock.products = [];
+
+  await productsPage.goto();
+
+  await productsPage.expectNoProducts();
+});
