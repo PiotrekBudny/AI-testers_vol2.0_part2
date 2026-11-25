@@ -21,6 +21,7 @@ export class ProductsPage extends BasePage {
     | 'paginationStatus'
     | 'loading'
     | 'noProducts'
+    | 'noCategories'
   >;
   readonly inputs: Locators<'search' | 'minPrice' | 'maxPrice' | 'inStockOnly'>;
   readonly selects: Locators<'sort' | 'minRating'>;
@@ -54,6 +55,7 @@ export class ProductsPage extends BasePage {
       paginationStatus: page.getByTestId('product-pagination-status'),
       loading: page.getByTestId('product-list-loading'),
       noProducts: page.getByTestId('no-products-message'),
+      noCategories: page.getByTestId('products-categories-empty'),
     };
 
     this.inputs = {
@@ -91,6 +93,19 @@ export class ProductsPage extends BasePage {
 
   productAt(index: number): ProductCard {
     return new ProductCard(this.productItems.nth(index));
+  }
+
+  async expectNoProducts(): Promise<void> {
+    await expect(this.texts.noProducts).toHaveText('No products found');
+    await expect(this.texts.searchSummary).toHaveText('No matching products');
+    await expect(this.texts.countSummary).toHaveText('0 products match');
+    await expect(this.texts.noCategories).toHaveText('No categories match');
+    await expect(this.texts.inStockCount).toHaveText('0');
+    await expect(this.productList).toBeHidden();
+    await expect(this.productItems).toHaveCount(0);
+    await expect(this.texts.loading).toBeHidden();
+    await expect(this.texts.paginationStatus).toBeHidden();
+    await expect(this.buttons.resetSearch).toBeHidden();
   }
 
   async expectToShowProducts(products: Product[]): Promise<void> {
