@@ -1,19 +1,21 @@
 import { existsSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
-import { ApiSessions, storageStateFor } from '@/api/apiSessions';
-import { AuthApi } from '@/api/authApi';
+import { savedAuthStateFor } from '@/api/savedAuthState';
 import { ProductSearchTraffic } from '@/assertions/productSearchTraffic';
 import { SignInTraffic } from '@/assertions/signInTraffic';
-import type { UserRole } from '@/config/users';
+import { tagPolicyViolations } from '@/config/testTags';
+import { getUser, type UserRole } from '@/config/users';
 import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
 import { ApiErrorMock } from '@/mocks/apiErrorMock';
-import { CartItemsMock } from '@/mocks/cartItemsMock';
+import { CartMock } from '@/mocks/cartMock';
 import { FakeProductDetailsMock } from '@/mocks/fakeProductDetailsMock';
 import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
 import { HarReplayMock } from '@/mocks/harReplayMock';
+import { LivePatchedProductDetailsMock } from '@/mocks/livePatchedProductDetailsMock';
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
-import type { ApiSession } from '@/models/auth';
+import { NetworkErrorMock } from '@/mocks/networkErrorMock';
+import { CartPage } from '@/pages/cartPage';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
 import { LoginPage } from '@/pages/loginPage';
@@ -23,7 +25,6 @@ import { RegisterPage } from '@/pages/registerPage';
 
 export type Options = {
   userRole: UserRole;
-  skipAutoLogin: boolean;
   harRecording: boolean;
 };
 
@@ -36,17 +37,20 @@ type Fixtures = {
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
   productDetailsPage: ProductDetailsPage;
+  cartPage: CartPage;
   forgotPasswordPage: ForgotPasswordPage;
   registerPage: RegisterPage;
   signInTraffic: SignInTraffic;
   productSearchTraffic: ProductSearchTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
   fakeProductDetailsMock: FakeProductDetailsMock;
-  cartItemsMock: CartItemsMock;
+  cartMock: CartMock;
   apiErrorMock: ApiErrorMock;
+  networkErrorMock: NetworkErrorMock;
   harReplayMock: HarReplayMock;
   livePatchedProductSearchMock: LivePatchedProductSearchMock;
-  loginViaApi: ApiSession | null;
+  livePatchedProductDetailsMock: LivePatchedProductDetailsMock;
+  tagPolicy: undefined;
 };
 
 function requireBaseURL(baseURL: string | undefined): string {
@@ -58,38 +62,23 @@ function requireBaseURL(baseURL: string | undefined): string {
   return baseURL;
 }
 
-type WorkerFixtures = {
-  apiSessions: ApiSessions;
-};
-
-export const test = base.extend<Options & Fixtures, WorkerFixtures>({
+export const test = base.extend<Options & Fixtures>({
   userRole: ['client', { option: true }],
-  skipAutoLogin: [false, { option: true }],
   harRecording: [false, { option: true }],
-  apiSessions: [
-    async ({ playwright }, use) => {
-      const request = await playwright.request.newContext();
-      await use(new ApiSessions(new AuthApi(request)));
-      await request.dispose();
-    },
-    { scope: 'worker' },
-  ],
-  loginViaApi: [
-    async ({ skipAutoLogin, userRole, apiSessions, baseURL }, use) => {
-      if (skipAutoLogin) {
-        await use(null);
-        return;
+  tagPolicy: [
+    async ({ userRole: _userRole }, use, testInfo) => {
+      const violations = tagPolicyViolations(testInfo.tags);
+      if (violations.length > 0) {
+        throw new Error(
+          `"${testInfo.title}" needs ${violations.join(' and ')}. See "Test categories" in CLAUDE.md.`,
+        );
       }
-      await use(await apiSessions.get(userRole, requireBaseURL(baseURL)));
+      await use(undefined);
     },
     { auto: true },
   ],
-  storageState: async ({ loginViaApi, baseURL }, use) => {
-    await use(
-      loginViaApi === null
-        ? undefined
-        : storageStateFor(loginViaApi, requireBaseURL(baseURL)),
-    );
+  storageState: async ({ userRole, baseURL }, use) => {
+    await use(await savedAuthStateFor(userRole, requireBaseURL(baseURL)));
   },
   contextOptions: async ({ contextOptions, harRecording }, use, testInfo) => {
     if (!harRecording) {
@@ -131,6 +120,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   productDetailsPage: async ({ page }, use) => {
     await use(new ProductDetailsPage(page));
   },
+  cartPage: async ({ page }, use) => {
+    await use(new CartPage(page));
+  },
   forgotPasswordPage: async ({ page }, use) => {
     await use(new ForgotPasswordPage(page));
   },
@@ -162,21 +154,24 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     await mock.register();
     await use(mock);
   },
-  cartItemsMock: async (
-    { page, loginViaApi, fakeProductSearchMock, fakeProductDetailsMock },
+  cartMock: async (
+    { page, userRole, fakeProductSearchMock, fakeProductDetailsMock },
     use,
   ) => {
-    const mock = new CartItemsMock(
-      page,
-      loginViaApi?.user.username ?? '',
-      () => [...fakeProductSearchMock.products, fakeProductDetailsMock.product],
-    );
+    fakeProductDetailsMock.alsoServe(() => fakeProductSearchMock.products);
+    const mock = new CartMock(page, getUser(userRole).username, () => [
+      ...fakeProductSearchMock.products,
+      fakeProductDetailsMock.product,
+    ]);
     await mock.register();
     await use(mock);
     mock.releaseHeldResponses();
   },
   apiErrorMock: async ({ page }, use) => {
     await use(new ApiErrorMock(page));
+  },
+  networkErrorMock: async ({ page }, use) => {
+    await use(new NetworkErrorMock(page));
   },
   harReplayMock: async ({ page, baseURL, userRole }, use, testInfo) => {
     await use(
@@ -190,6 +185,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   },
   livePatchedProductSearchMock: async ({ page }, use) => {
     await use(new LivePatchedProductSearchMock(page));
+  },
+  livePatchedProductDetailsMock: async ({ page }, use) => {
+    await use(new LivePatchedProductDetailsMock(page));
   },
 });
 

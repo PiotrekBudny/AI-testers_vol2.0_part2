@@ -6,7 +6,7 @@ export interface CategoryFacet {
   count: number;
 }
 
-export interface PriceRange {
+interface PriceRange {
   min: number | null;
   max: number | null;
 }

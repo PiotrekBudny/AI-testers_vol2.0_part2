@@ -76,6 +76,20 @@ export class ProductGenerator {
     );
   }
 
+  generateCatalogue(
+    count: number,
+    overrides: Omit<Partial<Product>, 'id'> = {},
+  ): { products: Product[]; first: Product; second: Product } {
+    const products = this.generateProducts(count, overrides);
+    const [first, second] = products;
+    if (!first || !second) {
+      throw new Error(
+        `generateCatalogue needs at least 2 products, got ${count}`,
+      );
+    }
+    return { products, first, second };
+  }
+
   private defaultReviewCount({ averageRating }: Partial<Product>): number {
     if (averageRating === null) {
       return 0;

@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { formatUsd } from '@/formatters/price';
-import type { Product } from '@/models/product';
+import type { Product, ProductDetails } from '@/models/product';
 import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
@@ -107,7 +107,7 @@ export class ProductDetailsPage extends BasePage {
     await this.links.notFoundBack.click();
   }
 
-  async expectToShowProduct(product: Product): Promise<void> {
+  async expectToShowProduct(product: ProductDetails): Promise<void> {
     await this.expectToBeOpen();
     await expect(this.heading).toHaveText(product.name);
     await expect(this.links.back).toHaveText('← Back to Products');
@@ -168,6 +168,13 @@ export class ProductDetailsPage extends BasePage {
   async expectAddingToCart(): Promise<void> {
     await expect(this.buttons.addToCart).toHaveText('Adding to Cart...');
     await expect(this.buttons.addToCart).toBeDisabled();
+  }
+
+  async expectInCart(quantity: number): Promise<void> {
+    await expect(this.buttons.addToCart).toHaveText('Update Cart');
+    await expect(this.buttons.addToCart).toBeEnabled();
+    await expect(this.texts.quantity).toHaveText(String(quantity));
+    await this.expectCartCount(quantity);
   }
 
   async expectReadyToAdd(quantity: number): Promise<void> {

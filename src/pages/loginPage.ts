@@ -3,7 +3,7 @@ import type { User } from '@/config/users';
 import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
-export type LoginField = 'username' | 'password';
+type LoginField = 'username' | 'password';
 
 const requiredMessages: Record<LoginField, string> = {
   username: 'Username is required',
@@ -15,7 +15,7 @@ export class LoginPage extends BasePage {
   readonly title = 'Sign in – Awesome Testing';
 
   readonly form: Locator;
-  readonly texts: Locators<'title' | 'subtitle' | 'playgroundNotice'>;
+  readonly heading: Locator;
   readonly inputs: Locators<LoginField>;
   readonly errors: Locators<LoginField>;
   readonly buttons: Locators<'signIn' | 'forgotPassword' | 'register'>;
@@ -25,11 +25,7 @@ export class LoginPage extends BasePage {
 
     this.form = page.getByTestId('login-form');
 
-    this.texts = {
-      title: page.getByTestId('login-title'),
-      subtitle: page.getByTestId('login-subtitle'),
-      playgroundNotice: page.getByTestId('login-playground-notice'),
-    };
+    this.heading = page.getByTestId('login-title');
 
     this.inputs = {
       username: page.getByTestId('login-username-input'),
@@ -59,7 +55,7 @@ export class LoginPage extends BasePage {
   }
 
   async expectEmptyForm(): Promise<void> {
-    await expect(this.texts.title).toHaveText('Sign in to your account');
+    await expect(this.heading).toHaveText('Sign in to your account');
     await expect(this.inputs.username).toBeEmpty();
     await expect(this.inputs.password).toBeEmpty();
     await expect(this.inputs.password).toHaveAttribute('type', 'password');

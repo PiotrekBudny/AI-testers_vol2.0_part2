@@ -12,7 +12,9 @@ the answer into the relevant section.
 
 Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
-(`page.route`). Current scope: the **product list** only.
+(`page.route`), plus a few tests against the live API. Current scope:
+the login form, the product list (search, errors, network errors), the
+product details page and the cart.
 
 - API docs (Swagger UI): <https://awesome.byst.re/swagger-ui/index.html>;
   raw spec at `https://awesome.byst.re/v3/api-docs` (fetch with `curl`).
@@ -26,15 +28,16 @@ Playwright + TypeScript end-to-end tests for the shop at
 ```
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
-  components/footer.ts                      Footer (shared on every view)
+  components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
-  api/apiSessions.ts                        per-worker session cache, storageStateFor
+  api/savedAuthState.ts                     creates and shares one saved session per role and origin
+  config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
+  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
-  enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   formatters/price.ts                       formatUsd: en-US USD price text as the app shows it
   models/product.ts                         Product (one search hit), ProductDetails
@@ -42,38 +45,49 @@ src/
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
+  pages/cartPage.ts                         CartPage (/cart)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productDetailsPage.ts               ProductDetailsPage (/products/{id}, open(product))
   pages/productsPage.ts                     ProductsPage (/products)
   pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  assertions/settle.ts                      expectToStay: poll, wait a window, check again
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
   assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
   fixtures/test.ts                          test/expect with page object + mock fixtures
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
-  mocks/apiRoutes.ts                        route globs shared by mocks and tests, ApiEndpoint
-  mocks/cartItemsMock.ts                    fake POST /api/v1/cart/items
+  mocks/apiRoutes.ts                        apiPaths (endpoint paths), route globs, ApiEndpoint
+  mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
+  mocks/livePatchedMock.ts                  generic LivePatchedMock<T>: route.fetch + transform + fulfill
+  mocks/livePatchedProductDetailsMock.ts    real GET /products/{id}, patched (stockQuantity)
   mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
+  mocks/networkErrorMock.ts                 aborts requests (no response) and counts attempts
   mocks/recorded/productSearch.json         committed recording of GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
-  auth.spec.ts                              API session accepted by the app; skipAutoLogin
-  loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
+  auth.spec.ts                              saved API session accepted by the app; logged-out redirect
+  adminAuth.spec.ts                         saved admin API session accepted by the app
+  loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
+  productsPageNetworkErrors.spec.ts         /products: connection drop, recovery after 2 aborts
+  cartPage.spec.ts                          /cart: add/update/remove, seeded, two products, Update rules, clear, links
+  cartPageApiErrors.spec.ts                 /cart negative: PUT 500, DELETE 500, dropped connection on update
   productDetailsPage.spec.ts                /products/{id}: details, 404, cart 500, out of stock, clicks
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
+  productDetailsPageLivePatched.spec.ts     /products/{id}: real product, stockQuantity patched to 0
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
+global-setup.ts                             private temporary directory for saved sessions
 ```
 
 Imports are extensionless. Anything in `src/` is imported through the `@/`
@@ -101,7 +115,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `engine-strict=true`. Never bypass nvm or engine checks.
 - `.npmrc` has `save-exact=true`: every dependency is pinned to an exact
   version, with no `^` or `~`.
-- `npm test` runs Playwright, `npm run typecheck` runs `tsc --noEmit`,
+- `npm test` runs Playwright (every project, so the whole suite once).
+  `npm run test:<category>` runs one category (`test:auth`,
+  `test:products`, `test:product-details`, `test:cart`, `test:mocked`,
+  `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
@@ -119,8 +136,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   It reads the totals in `test-results/results.json` and writes one
   annotation on the run, titled "Playwright results", like
   `4 tests: 4 passed, 0 failed, 0 flaky, 0 skipped (13.3 s)`:
-  - `error` level when any test failed, `warning` when any was flaky,
-    otherwise `notice`.
+  - `error` level when any test failed or the JSON report has run errors
+    (including global setup failures before tests start). Otherwise,
+    `warning` when any test was flaky and `notice` for a clean run.
   - A `warning` when the file is missing (the tests never got to run).
   - It takes an optional results file path for trying it out locally.
 - The GitHub ruleset "main: require CI" (Settings → Rules) makes both
@@ -194,13 +212,14 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
-- On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
-  reporters. `json` writes `test-results/results.json`, which feeds the CI
+- On CI: `retries: 2`, `forbidOnly`, and the `list`, `html` and `json`
+  reporters (`list` prints each test in the job log). `json` writes `test-results/results.json`, which feeds the CI
   results annotation. Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
-  locally. The single project is `mockingTests` (Desktop Chrome).
+  locally. Desktop Chrome is set in the top-level `use`, and the projects
+  split the suite by category (see Test categories).
 - HAR recording is the `harRecording` option fixture, set in the config
   to `!isCI`, so it's **on locally only**. The config is typed
   `defineConfig<Options>` to accept it.
@@ -246,21 +265,57 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   Home & Kitchen, Wearables.
 - Known image paths: `/images/{iphone,samsung,mac,ps5,ninja,cleancode,applewatch,sony}.png`.
 
+## Test categories (tags and projects)
+
+- Every spec wraps its tests in **top-level** `test.describe` blocks with
+  tags. Describes are **never nested**, so a file with several groups (for
+  example `tests/loginPage.spec.ts`) has several top-level describes.
+- Every test carries exactly **one feature tag**, set on its describe:
+  `@auth`, `@products`, `@product-details` or `@cart`.
+- It also carries exactly **one data tag**. `@live`: the test checks real
+  backend data. `@mocked`: the endpoints under test are mocked or
+  replayed, **but authenticated tests still use real API login and page
+  bootstrap (`users/me`, `cart`, `currencies`)**. `@mocked` and `@live`
+  together cover the whole suite.
+- The auto fixture `tagPolicy` (`src/fixtures/test.ts`, rules in
+  `src/config/testTags.ts`) fails any test that doesn't have exactly one
+  feature tag and exactly one data tag, naming what's missing. Verified
+  with a throwaway spec: two feature tags and a missing data tag both fail.
+- Optional tags: `@negative` (error and validation scenarios; set per test
+  when only some tests in a describe are negative), `@search`,
+  `@network` and `@har`.
+- **Projects** in `playwright.config.ts` are built from the feature tags
+  (`grep: /@cart(?![\w-])/` and so on), so they partition the suite: a full
+  run executes each test once, and `--project=cart` runs one feature. The
+  lookahead keeps `@products` from matching `@product-details`.
+- The `untagged` project (`grepInvert` of all feature tags) makes sure a
+  test with no feature tag still runs, so `tagPolicy` fails it instead of
+  it silently dropping out of every feature project. When everything is
+  tagged it's empty, and `--project=untagged` on its own then prints
+  "No tests found" and exits 1: that's the correct state, not an error.
+- Cross-cutting runs use `--grep`: `--grep @live`, `--grep @negative`,
+  `--grep "@cart.*@negative"`. A new feature tag needs an entry in
+  `featureTags` in `src/config/testTags.ts` (shared by the config and
+  `tagPolicy`) and a `test:<feature>` script.
+- Verified: 10 auth + 17 products + 7 product-details + 12 cart + 0
+  untagged = 46 tests, the same as the whole suite.
+
 ## Page objects
 
 - One class per view in `src/pages/`, constructed with `new XPage(page)`,
   exposing `readonly` locators plus action methods (`login`).
 - Every page extends the abstract `BasePage`. It holds `page`, the shared
-  components, `goto()`, which opens `this.url`, and `expectToBeOpen()`,
+  components, `cartCounter` (the nav cart icon, which renders on every
+  page; `expectCartCount(n)` expects its text, empty at 0), `goto()`, which opens `this.url`, and `expectToBeOpen()`,
   which checks the URL **path** (the query is ignored, for example
   `?returnTo=`) and the page title.
 - Each page declares its exact URL path and its title in its own class:
   `readonly url = '/login'`, `readonly title = 'Sign in – Awesome Testing'`.
   Paths are relative to `baseURL`, so `BASE_URL` still picks the
   environment. Don't override `goto()` per page.
-- Parts shared across views (navigation, footer, toasts) live in
+- Parts shared across views (navigation, toasts) live in
   `src/components/`, each scoped to its root test id. `BasePage` creates
-  them, so every page has `.navigation`, `.footer` and `.toast`.
+  them, so every page has `.navigation` and `.toast`.
 - Tests get page objects through Playwright fixtures: import `test` and
   `expect` from `src/fixtures/test.ts`, not from `@playwright/test`, and
   take `loginPage`, `dashboardPage`, `productsPage` as test arguments. Every
@@ -276,20 +331,31 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `navigation.expectLoggedOut()`, `toast.expectToShow(title, text)`,
     `productsPage.expectInStockCount(2)`).
   - **What a mock received or served**: a method on that mock
-    (`cartItemsMock.expectAddedItems(...)`,
+    (`cartMock.expectAddedItems(...)`,
     `livePatchedProductSearchMock.expectServedWithoutErrors(1)`,
     `harReplayMock.expectMatchesRecording(...)`).
   - **Real network traffic** with no mock: an assertion class in
     `src/assertions/`. It starts listening in its constructor, so its
     fixture must be requested before the action. `SignInTraffic`
-    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent`) and
-    `ProductSearchTraffic` (`expectOkWithProducts()` returns the body).
+    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent(ms)`,
+    which waits the window before checking) and
+    `ProductSearchTraffic` (`expectOkWithProducts()` returns the body,
+    `expectAnInStockProduct()` returns a real product with stock).
 - Name methods `expect` + what is true afterwards, written from the
   user's view: `expectToWelcome(displayName)`, `expectToShowLoggedOutForm()`.
 - Compose instead of repeating: `expectToShowLoggedOutForm()` uses
   `expectToBeOpen()` and `navigation.expectLoggedOut()`.
 - Waiting is not asserting: use `locator.waitFor()` when a test only needs
   the page to be ready.
+- "Nothing more was sent" needs a window: `expectToStay(page, read,
+  expected, ms, message)` (`src/assertions/settle.ts`) polls until the
+  value matches, waits `ms`, and checks again. Every `…ToStay` method and
+  `SignInTraffic.expectNoneSent` use it, and specs pass
+  `NO_MORE_REQUESTS_WINDOW_MS` (`src/config/timing.ts`, 1.5 s).
+- No `if`/`throw` in specs: get typed products from
+  `ProductGenerator.generateCatalogue(count, overrides)` (`{ products,
+  first, second }`), and keep transforms in the mock
+  (`livePatchedProductSearchMock.patchFirstProduct(changes)`).
 
 ### Rule: prefer `data-testid` locators
 
@@ -308,11 +374,12 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - When a page object has more than one locator of the same kind, put them
   in a named group instead of separate fields: `buttons`, `links`,
   `inputs`, `selects`, `errors`, `headings`, `texts`, or a more specific
-  name when it reads better (`menuLinks`, `features`). Keys are short
+  name when it reads better (`menuLinks`). Keys are short
   camelCase names without the kind suffix: `buttons.signIn`, not
   `signInButton`.
 - A single locator of its kind stays a plain field (`form`, `root`,
-  `userEmail`, `closeButton`).
+  `heading`, `searchInput`, `welcomeHeading`). When removing locators
+  leaves a group with one key, turn it into a plain field.
 - Type groups with `Locators<'a' | 'b'>` from `src/types/locators.ts` and
   assign them in the constructor. Field initializers can't use `this.page`
   (TS2729, because of parameter properties), and the declared keys make
@@ -334,7 +401,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   open `/forgot-password` ("Forgot password – Awesome Testing") and
   `/register` ("Create account – Awesome Testing").
 - `tests/loginPage.spec.ts` is the only spec that uses the UI login form,
-  with `skipAutoLogin` for the whole file. Its successful login signs in
+  with empty `storageState` for the whole file. Its successful login signs in
   for real as the client. The rejected-login test uses a random unknown
   username, so failed attempts never count against the shared accounts.
   Its scenarios: valid credentials land on the dashboard; invalid ones
@@ -352,9 +419,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   display name is the navigation's `username-profile-link`. The heading
   shows only the first name (`Welcome, Alice!`).
 - Navigation: `links.login`/`links.register` show only when logged out.
-  `links.cart`, `links.profile` (leads to `/profile`), `menuLinks`,
-  `selects` and `buttons` show only when logged in. It's mapped for the
-  desktop layout as a client; admins may see more links.
+  `links.cart` and `links.profile` (leads to `/profile`) show only when
+  logged in, as do the desktop menu links, selects and logout button
+  (not modelled; no test uses them). Mapped for the desktop layout as a
+  client; admins may see more links.
 - Products page (`/products`, "Products – Awesome Testing"), modelled as
   `ProductsPage`:
   - Every product card repeats the same test ids (`product-item`,
@@ -363,11 +431,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `productsPage.productAt(index)`.
   - Category test ids use a slug of the name: lowercase, spaces become `-`,
     `&` is kept (`products-category-home-&-kitchen`,
-    `products-category-count-home-&-kitchen`). Use `categoryCheckbox(cat)` /
-    `categoryCount(cat)` with the `ProductCategory` enum.
+    `products-category-count-home-&-kitchen`). Not modelled yet; build the
+    id from the `ProductCategory` enum when a test needs it.
   - The sort `<select>` uses hyphens (`price-asc`), while the API's `sort`
-    parameter uses underscores (`price_asc`). `ProductSortOption` holds the
-    UI values.
+    parameter uses underscores (`price_asc`). Sorting and the price/rating
+    filters aren't modelled yet (no test uses them).
   - The URL's `?page=` is 1-based (`?page=2` is the second page), while the
     API's `page` is 0-based. Pagination (`product-pagination-prev/-status/-next`,
     status `Page 2 of 3`) only renders when there is more than one page.
@@ -426,7 +494,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     click sends no request.
   - Intercepting every non-GET request (`page.route('**/*')`) stopped Add to
     Cart from sending anything. Mock only the exact endpoint
-    (`CartItemsMock` routes `**/api/v1/cart/items`).
+    (`CartMock` routes only the cart endpoints).
   - A search `404` shows the error state at once, after one request. A
     `500` is retried with backoff (4 requests at about 0/1/3/7 s, showing
     `product-list-loading` "Loading products..." meanwhile). The error
@@ -435,6 +503,15 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     "Searching the catalogue". Retry sends a new search.
     `ProductsPage.expectLoadError()` (waits up to 15 s),
     `expectStillLoading()` and `retryLoading()` cover it.
+  - A dropped connection (`route.abort()`, no response at all) looks
+    exactly like a `500` in the UI: the same 4 attempts at about
+    0/1/3/7 s, the same loading state and the same error state. Only the
+    traffic differs: a `500` produces a response, while an abort produces
+    `requestfailed` and **no response**. The error text depends on the
+    abort code: `net::ERR_FAILED` for the default `failed`,
+    `net::ERR_INTERNET_DISCONNECTED` for `internetdisconnected`. Clicking Retry
+    after either starts a **full new cycle of 4 attempts**. So the app
+    retries 5xx and network failures, but not 4xx.
   - A `401` from `GET /api/v1/users/me` makes the app call
     `POST /api/v1/users/refresh`. When that fails too, it clears `token`
     and `refreshToken` and lands on `/login` (no `returnTo`, no toast, no
@@ -477,16 +554,65 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `wishlist-toggle` stays enabled.
   - **Add to Cart in flight:** while the POST is pending the button reads
     "Adding to Cart..." and is disabled, so extra clicks (normal, forced,
-    `dispatchEvent`) send nothing: exactly one POST. After the response,
-    each click sends a new `POST {productId, quantity}` with the selected
-    quantity; it isn't cumulative and the quantity doesn't reset. Only
-    one toast is visible at a time.
+    `dispatchEvent`) send nothing: exactly one POST.
+  - **Product already in the cart** (the app reads `GET /api/v1/cart`):
+    the button reads **"Update Cart"**, the quantity selector shows the
+    cart quantity, and a click sends **`PUT /api/v1/cart/items/{id}`**
+    `{quantity}` with the selected quantity. That _sets_ the quantity, so
+    clicking it again at the same quantity changes nothing. Only a product
+    that isn't in the cart gets `POST /cart/items`. (Earlier specs saw a
+    POST on every click only because the real `GET /cart` stayed empty
+    while the POSTs were mocked.) `expectInCart(quantity)` checks this.
   - **Cart 500:** one POST, no retry. Toast `Error` / "Failed to update
     cart. Please try again.". The button goes back to "Add to Cart",
     enabled, and the quantity is kept.
   - **Unknown id with the real reviews API:** the reviews calls return 404
     and `reviews-error` (`role="alert"`) shows "Unable to load reviews.".
     `FakeProductDetailsMock` serves empty reviews to avoid this.
+- Cart page (`/cart`, "Cart – Awesome Testing"), modelled as `CartPage`
+  with one `CartItemRow` per item (`cartPage.item(productId)`). All facts
+  were mapped from a real HAR and MCP:
+  - **Requests:** the page reads `GET /api/v1/cart` (on every page load
+    and again after every write, often twice). Items hold only
+    `productId` and `quantity`, so the page fetches
+    `GET /api/v1/products/{id}` for names and prices.
+  - **Row test ids carry the product id:** `cart-item-{id}`, `-name-`,
+    `-price-`, `-decrease-`, `-quantity-`, `-increase-`, `-update-`,
+    `-total-`, `-remove-`.
+  - **Summary:** `cart-summary-items-count`, `cart-summary-total-price`,
+    `cart-checkout-button` "Proceed to Checkout", `cart-clear-button`
+    "Clear Cart". The coupon, gift card and loyalty panels aren't
+    modelled.
+  - **Changing the quantity:** + and − only change the shown number.
+    **Update** (`cart-item-update-{id}`) is **absent** until the shown
+    quantity differs from the cart, and disappears again when it matches.
+    − is disabled at 1 and + at `stockQuantity`. Nothing is sent until
+    Update (`PUT /cart/items/{id}`), after which the toast reads
+    `Cart updated` / "`<name>` quantity set to `<n>`".
+    `CartItemRow.changeQuantityWithoutSaving`, `saveQuantity`,
+    `setQuantity` (both steps), `expectUnsavedQuantity`,
+    `expectSavedQuantity` and `expectQuantityLimits` cover it.
+  - **Remove:** `DELETE /cart/items/{id}`, toast `Removed from cart` /
+    "`<name>` has been removed from your cart". With no items left the page
+    shows `cart-empty` and "Browse Products".
+  - **Clear Cart** opens a **native `confirm()`**: "Are you sure you want
+    to clear your cart?". Accepting sends `DELETE /api/v1/cart` and shows
+    the toast `Cart cleared` / "All items have been removed from your
+    cart". Dismissing sends nothing. `CartPage.clearCart('accept' |
+    'dismiss')` answers it, and `expectClearConfirmationAsked()` checks
+    the message.
+  - **Errors:** a failed `PUT` (500 or a dropped connection) shows toast
+    `Error` / "Failed to update cart. Please try again." and the shown
+    quantity **goes back** to the saved one. A failed `DELETE` shows
+    `Error` / "Failed to remove from cart. Please try again." and the row
+    stays. Neither is retried (`tests/cartPageApiErrors.spec.ts`).
+  - **Toasts stack:** several can be visible at once, so
+    `Toast.expectToShow(title, description)` looks for the **one**
+    toast (`li`) that has both texts.
+  - **Cart counter:** the nav cart icon (`desktop-cart-icon`, on every
+    page) shows `totalItems` as text (units, not lines), empty at 0. Its
+    `aria-label` reads `Cart, 1 item`. `BasePage.cartCounter` /
+    `expectCartCount(n)`.
 
 ## Mocking conventions
 
@@ -504,23 +630,29 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
-- Login is real but goes through the API, once per worker (see API login
+  - `generateCatalogue(count, overrides)` returns the same list plus a
+    typed `first` and `second` (count must be at least 2).
+- Login goes through the real API once per role and origin in a run (see API login
   below). The mocks cover only the endpoints a test asks for.
-- Three kinds of product search mock. The class name starts with the
+- Four kinds of mock for products (search and details). The class name starts with the
   kind, and each fixture and file is the class name in camelCase
   (`FakeProductSearchMock` → `fakeProductSearchMock`):
 
-  | Kind         | Class / fixture                | Calls the real API?   | Data                      |
-  | ------------ | ------------------------------ | --------------------- | ------------------------- |
-  | Fake         | `FakeProductSearchMock`        | No                    | generated by Faker        |
-  | HAR replay   | `HarReplayMock`                | No (capture is local) | real, committed recording |
-  | Live patched | `LivePatchedProductSearchMock` | Yes, every request    | real, with a transform    |
-  | None (live)  | no mock fixture requested      | Yes                   | real, unchanged           |
+  | Kind         | Class / fixture                                                 | Calls the real API?   | Data                      |
+  | ------------ | --------------------------------------------------------------- | --------------------- | ------------------------- |
+  | Fake         | `FakeProductSearchMock`                                         | No                    | generated by Faker        |
+  | HAR replay   | `HarReplayMock`                                                 | No (capture is local) | real, committed recording |
+  | Live patched | `LivePatchedProductSearchMock`, `LivePatchedProductDetailsMock` | Yes, every request    | real, with a transform    |
+  | None (live)  | no mock fixture requested                                       | Yes                   | real, unchanged           |
 
   `HarReplayMock` isn't tied to product search: `serve(name)` replays any
   recording.
   Route globs live in `apiRoutes` (`src/mocks/apiRoutes.ts`), not on a
-  mock class, so the mocks don't depend on each other.
+  mock class, so the mocks don't depend on each other. Endpoint paths
+  live once in `apiPaths` in the same file. `AuthApi`, `SignInTraffic`
+  and `ProductSearchTraffic` use them, and the string globs are built
+  from them. Only the skills' `.mjs` scripts repeat `/api/v1/users/signin`,
+  because plain Node can't import the TS module.
 - No mock is `auto`: a test that doesn't request one hits the real API.
   `tests/productsPageLive.spec.ts` does this on purpose. It waits for
   the real `GET /api/v1/products/search` response and checks the cards
@@ -560,10 +692,29 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     there. There's no capture spec or project.
   - Don't hand-edit recordings to shape data (a refresh overwrites
     them). Use `LivePatchedProductSearchMock` or the fake mock.
-- **`LivePatchedProductSearchMock`** (fixture
-  `livePatchedProductSearchMock`) uses the docs' "modify API responses"
-  pattern: `route.fetch()` the real search, apply `register(transform)`,
-  then `route.fulfill({ response, json })`.
+- **Live patched mocks** use the docs' "modify API responses" pattern:
+  `route.fetch()` the real response, apply `register(transform)`, then
+  `route.fulfill({ response, json })`. The logic lives in the generic
+  `LivePatchedMock<T>` (`src/mocks/livePatchedMock.ts`, constructed with
+  an `ApiEndpoint`), with `lastServed()`, `lastReal()` and the async
+  `expectServedWithoutErrors(n, settleMs = 1000)`. It waits until `n`
+  responses were served **or failed**, so a real-API error fails at once
+  with its message. Then it waits `settleMs` and checks that there are
+  still no errors and exactly `n` served. Two subclasses:
+  - **`LivePatchedProductSearchMock`** (fixture
+    `livePatchedProductSearchMock`): `patchFirstProduct(changes)` and
+    `expectOnlyFirstProductPatched()`.
+  - **`LivePatchedProductDetailsMock`** (fixture
+    `livePatchedProductDetailsMock`): `patchStockQuantity(n)` and
+    `expectOnlyStockQuantityPatched(n)`.
+    `tests/productDetailsPageLivePatched.spec.ts` takes a real in-stock
+    product from the live search
+    (`productSearchTraffic.expectAnInStockProduct()`), opens its details
+    page with only `stockQuantity` patched to 0, and checks the
+    out-of-stock state. No generated product and no static recording; it
+    needs the real backend.
+
+  Shared rules:
   - The transform gets a clone, so it may change it in place.
   - `realResponses[i]` and `servedResponses[i]` always belong to the same
     request, because both are pushed only after `route.fulfill` succeeded.
@@ -571,7 +722,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     returns the last served one.
   - Only the fetch and the transform are inside the `try`, and the route
     is completed exactly once. Errors go into `errors`:
-    - When the real search isn't OK or the transform throws, it serves
+    - When the real response isn't OK or the transform throws, it serves
       the real response unchanged.
     - When `route.fetch()` itself fails (network), it aborts the request.
     - A failing final `route.fulfill` (for example, the page closed)
@@ -580,15 +731,17 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     reports the errors.
   - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
     search was served and that `errors` is empty.
-- **API login (`loginViaApi`)**: tests never log in through the UI form,
+- **API login and saved storageState**: tests never log in through the UI form,
   except `tests/loginPage.spec.ts`, which tests the form itself.
-  The auto `loginViaApi` fixture signs in once per worker with
-  `POST /api/v1/users/signin` (`AuthApi.signIn`). The `storageState`
-  override starts every context with `token`/`refreshToken` in
-  localStorage, and `test.use({ skipAutoLogin: true })` keeps a test
-  logged out. The **api-login** skill (`.claude/skills/api-login/SKILL.md`)
-  covers how to add it to a test or a new role, the logout/`renew` rule,
-  and logging in through Playwright MCP.
+  `global-setup.ts` makes a private temporary directory unique to the run
+  and removes it during teardown. The `storageState` fixture calls
+  `AuthApi.signIn` on first use for each role and origin and saves
+  `token` and `refreshToken` as localStorage entries. Tests share that
+  file across workers. `test.use({ storageState: { cookies: [],
+  origins: [] } })` skips session creation, so tests that never sign in
+  can run without account credentials. Tokens expire after one hour.
+  The **api-login** skill
+  (`.claude/skills/api-login/SKILL.md`) covers tests, roles, and Playwright MCP.
 - **`FakeProductSearchMock`** (fixture `fakeProductSearchMock`): the
   fixture creates it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
@@ -603,18 +756,37 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     rating or stock, or sort. It serves matches in their given order.
   - It records each request's `q` (`null` when absent) in
     `receivedQueries`. `expectLastSearchedFor(query)` polls the last one.
-- **`CartItemsMock`** (fixture `cartItemsMock`, requested only by tests
-  that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
-  change the shared account's real cart. It records each request body in
-  `addedItems` when it arrives and answers with a cart priced from
-  `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`.
-  A test that clicks Add to Cart must take this fixture (or make
-  `cartItems` fail through `apiErrorMock`).
+- **`CartMock`** (fixture `cartMock`, requested only by tests that touch
+  the cart) is a **stateful** fake cart, so tests never change the shared
+  account's real cart.
+  - Each test gets its own instance, so its own empty item map; nothing is
+    shared between tests.
+  - It serves `GET /api/v1/cart` from that state, and updates it on
+    `POST /cart/items` (adds to the quantity), `PUT /cart/items/{id}`
+    (sets it; 0 removes), `DELETE /cart/items/{id}` and `DELETE /cart`.
+    PUT or DELETE of an item that isn't in the cart answers 404
+    `{"message":"Cart item not found"}`. These match the real backend,
+    verified through MCP with cleanup; the 404 for PUT is assumed.
+  - Every write answers with the whole cart: `{username, items:
+    [{productId, quantity}], totalPrice, totalItems}`. Prices come from
+    `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`;
+    an item whose product is in neither throws a clear error instead of
+    being priced at $0.
+  - `seed(items)` starts a test with items. It throws at once for a
+    product the mocks don't know, and a POST for an unknown product gets a
+    500 with the same message, instead of a hanging request. `cart()` returns the current
+    cart, `expectCartItems(items)` polls the state, and `addedItems` /
+    `updatedItems` log the POST / PUT bodies (`expectAddedItems`,
+    `expectUpdatedItems`).
+  - A test that clicks Add to Cart must take this fixture, or make
+    `cartItems` fail through `apiErrorMock`.
   - `expectAddedItems(items)` polls `addedItems`. For "nothing sent" or
     "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
     checks that nothing more arrives within `ms`.
-  - `holdResponses()` holds every POST until the returned function is
-    called. Tests use it for the "Adding to Cart..." pending state without
+  - `holdResponses()` holds every write until the returned function is
+    called. Calling it again while holding returns the same release.
+    The change is applied only on release, so a `GET /cart` during
+    the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test
     never leaves a route handler hanging.
 - **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
@@ -622,7 +794,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or
     more so it never clashes with the search mock's ids) for
     `GET /api/v1/products/{id}` (also with a trailing `/` or a query),
-    minus the rating fields.
+    minus the rating fields. Unknown ids get 404 `Product not found`.
+    `alsoServe(products)` adds more products by id. Only the `cartMock`
+    fixture calls it, with `fakeProductSearchMock.products`, because the
+    cart page fetches the details of every cart line. So requesting
+    `fakeProductDetailsMock` alone doesn't pull in a fake search.
   - Serves empty reviews (summary, list, mine) for any product id.
   - `updateProduct(changes)` uses `Object.assign`.
   - The `productDetails` and `productReviews` routes in `apiRoutes` are
@@ -641,8 +817,22 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   refresh token never reaches the real refresh endpoint. Procedure,
   behaviour and MCP exploration steps live in the **mock-api-errors**
   skill.
+- **`NetworkErrorMock`** (fixture `networkErrorMock`, not `auto`):
+  `abort(endpoint, { times?, errorCode? })` makes any `apiRoutes`
+  endpoint fail with **no response** (`route.abort`, default `failed`;
+  the tests use `internetdisconnected`).
+  - `abortedCount`, `waitForAbortedCount` and `expectAbortedCountToStay`
+    count the aborted attempts.
+  - Never wait for a response of an aborted request:
+    `page.waitForResponse` never resolves, and
+    `HarReplayMock.waitForReplayedResponse` fails at once on the
+    `requestfailed` event. Assert the UI and the attempt counts instead.
+  - **Fail N times, then recover:** register the serving route first
+    (`harReplayMock.serve(...)` or a fake mock fixture), then
+    `abort(endpoint, { times: N })`. Playwright tries the last-registered
+    route first, and after N attempts the abort route is removed.
 - **`ProductSearchResponseBuilder`**:
-  - `withProducts`/`withGeneratedProducts` take _all_ matching products.
+  - `withProducts` takes _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
   - `build()` slices `content` and derives the totals and facets from all
     products. With no products set, it generates 8.
@@ -658,7 +848,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
   admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
   modelled in code yet: no `warehouse`/`admin` menu links in
-  `NavigationBar`, no admin page objects, no admin specs. The
+  `NavigationBar`, no admin page objects; `adminAuth.spec.ts` only checks the saved session. The
   **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
   mapped test ids, the admin-only endpoints and the agreed rules for admin
   tests (separate `tests/admin*.spec.ts`, live writes only on self-created
@@ -667,14 +857,12 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
   individually.
-- Tests in one worker share that worker's API session (same `token` and
-  `refreshToken`); workers have separate sessions. Whether the backend
-  rotates refresh tokens is unknown. If it does, a refresh in one test
-  could invalidate the next test's copy. It can't trigger today: a run
-  takes seconds, the cache renews 120 s before the JWT expires, and no
-  test logs out. Logging out is covered by the `renew` rule in the
-  api-login skill. If
-  rotation ever bites, the fix is one session per test.
+- Tests of one role share its saved `token` and `refreshToken` across workers.
+  Whether the backend rotates refresh tokens is unknown. A real refresh or
+  logout could invalidate the saved session for other tests in the run.
+  Current tests do neither; 401 tests mock refresh. Runs normally take seconds,
+  while the JWT lasts one hour. If rotation becomes a problem, use separate
+  accounts or sessions for tests that change authentication state.
 - A rare uncaptured flake: twice, one full parallel run had one failing
   test (once with the UI-login setup, once right after the switch to API
   login). Neither error was saved. Each time the following runs all passed,

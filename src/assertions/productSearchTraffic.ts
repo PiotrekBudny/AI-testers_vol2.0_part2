@@ -1,7 +1,9 @@
 import { expect, type Page, type Response } from '@playwright/test';
+import { apiPaths } from '@/mocks/apiRoutes';
+import type { Product } from '@/models/product';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
-const productSearchPath = '/api/v1/products/search';
+const productSearchPath = apiPaths.productSearch;
 
 export class ProductSearchTraffic {
   private readonly responses: Response[] = [];
@@ -28,5 +30,12 @@ export class ProductSearchTraffic {
     const body = (await response?.json()) as ProductSearchResponse;
     expect(body.content.length).toBeGreaterThan(0);
     return body;
+  }
+
+  async expectAnInStockProduct(): Promise<Product> {
+    const { content } = await this.expectOkWithProducts();
+    const inStock = content.find(({ stockQuantity }) => stockQuantity > 0);
+    expect(inStock, 'an in-stock product in the real search').toBeDefined();
+    return inStock as Product;
   }
 }

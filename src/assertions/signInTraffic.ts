@@ -1,11 +1,13 @@
 import { expect, type Page, type Request } from '@playwright/test';
+import { expectToStay } from '@/assertions/settle';
+import { apiPaths } from '@/mocks/apiRoutes';
 
-const signInPath = '/api/v1/users/signin';
+const signInPath = apiPaths.signIn;
 
 export class SignInTraffic {
   private readonly requests: Request[] = [];
 
-  constructor(page: Page) {
+  constructor(private readonly page: Page) {
     page.on('request', (request) => {
       if (new URL(request.url()).pathname === signInPath) {
         this.requests.push(request);
@@ -21,9 +23,13 @@ export class SignInTraffic {
     await this.expectSingleResponseWithStatus(422);
   }
 
-  expectNoneSent(): void {
-    expect(this.requests, `no ${signInPath} request was expected`).toHaveLength(
+  async expectNoneSent(forMs: number): Promise<void> {
+    await expectToStay(
+      this.page,
+      () => this.requests.length,
       0,
+      forMs,
+      `${signInPath} requests sent`,
     );
   }
 
