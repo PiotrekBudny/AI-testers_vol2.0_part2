@@ -1,14 +1,14 @@
+import { getUser } from '@/config/users';
 import { test } from '@/fixtures/test';
 
 test('client is logged in by the API session without the login form', async ({
   dashboardPage,
-  loginViaApi,
 }) => {
   await dashboardPage.goto();
 
   await dashboardPage.expectToBeOpen();
   await dashboardPage.navigation.expectLoggedInAs(
-    loginViaApi?.user.displayName ?? '',
+    getUser('client').displayName,
   );
 });
 

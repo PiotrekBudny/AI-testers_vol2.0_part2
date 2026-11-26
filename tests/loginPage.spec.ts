@@ -2,6 +2,8 @@ import { faker } from '@faker-js/faker';
 import { getUser } from '@/config/users';
 import { test } from '@/fixtures/test';
 
+const NO_SIGN_IN_WINDOW_MS = 1_000;
+
 test.use({ skipAutoLogin: true });
 
 test.beforeEach(async ({ loginPage }) => {
@@ -55,7 +57,7 @@ test.describe('empty fields', () => {
 
     await loginPage.expectRequiredErrors(['username', 'password']);
     await loginPage.expectToShowLoggedOutForm();
-    signInTraffic.expectNoneSent();
+    await signInTraffic.expectNoneSent(NO_SIGN_IN_WINDOW_MS);
   });
 
   test('missing password shows only the password error and sends nothing', async ({
@@ -66,7 +68,7 @@ test.describe('empty fields', () => {
 
     await loginPage.expectRequiredErrors(['password']);
     await loginPage.expectToShowLoggedOutForm();
-    signInTraffic.expectNoneSent();
+    await signInTraffic.expectNoneSent(NO_SIGN_IN_WINDOW_MS);
   });
 
   test('missing username shows only the username error and sends nothing', async ({
@@ -77,7 +79,7 @@ test.describe('empty fields', () => {
 
     await loginPage.expectRequiredErrors(['username']);
     await loginPage.expectToShowLoggedOutForm();
-    signInTraffic.expectNoneSent();
+    await signInTraffic.expectNoneSent(NO_SIGN_IN_WINDOW_MS);
   });
 });
 

@@ -5,7 +5,7 @@ const signInPath = '/api/v1/users/signin';
 export class SignInTraffic {
   private readonly requests: Request[] = [];
 
-  constructor(page: Page) {
+  constructor(private readonly page: Page) {
     page.on('request', (request) => {
       if (new URL(request.url()).pathname === signInPath) {
         this.requests.push(request);
@@ -21,10 +21,12 @@ export class SignInTraffic {
     await this.expectSingleResponseWithStatus(422);
   }
 
-  expectNoneSent(): void {
-    expect(this.requests, `no ${signInPath} request was expected`).toHaveLength(
-      0,
-    );
+  async expectNoneSent(forMs: number): Promise<void> {
+    await this.page.waitForTimeout(forMs);
+    expect(
+      this.requests,
+      `no ${signInPath} request was expected within ${forMs} ms`,
+    ).toHaveLength(0);
   }
 
   private async expectSingleResponseWithStatus(status: number): Promise<void> {

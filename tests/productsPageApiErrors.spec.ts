@@ -1,6 +1,6 @@
 import { test } from '@/fixtures/test';
 
-const FIRST_RETRY_DELAY_MS = 1_000;
+const NO_MORE_REQUESTS_WINDOW_MS = 1_500;
 
 test('client sees load error when product search returns 404', async ({
   productsPage,
@@ -14,7 +14,7 @@ test('client sees load error when product search returns 404', async ({
   await apiErrorMock.expectRequestCountToStay(
     'productSearch',
     1,
-    FIRST_RETRY_DELAY_MS + 500,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -26,10 +26,14 @@ test('client sees load error after retries when product search returns 500', asy
 
   await productsPage.goto();
 
-  await apiErrorMock.waitForRequestCount('productSearch', 2);
+  await apiErrorMock.waitForRequestCount('productSearch', 1);
   await productsPage.expectStillLoading();
   await productsPage.expectLoadError();
-  await apiErrorMock.expectRequestCount('productSearch', 4);
+  await apiErrorMock.expectRequestCountToStay(
+    'productSearch',
+    4,
+    NO_MORE_REQUESTS_WINDOW_MS,
+  );
 });
 
 test('client loads products with retry after a failed search', async ({
@@ -58,5 +62,9 @@ test('client is sent to login when current user returns 401', async ({
   await loginPage.expectToShowLoggedOutForm();
   await apiErrorMock.expectRequestCount('currentUser', 1);
   await apiErrorMock.expectRequestCount('tokenRefresh', 1);
-  await apiErrorMock.expectRequestCount('logout', 0);
+  await apiErrorMock.expectRequestCountToStay(
+    'logout',
+    0,
+    NO_MORE_REQUESTS_WINDOW_MS,
+  );
 });
