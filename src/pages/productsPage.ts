@@ -8,6 +8,7 @@ import { BasePage } from './basePage';
 
 export class ProductsPage extends BasePage {
   readonly url = '/products';
+  readonly title = 'Products – Awesome Testing';
 
   readonly root: Locator;
   readonly productList: Locator;

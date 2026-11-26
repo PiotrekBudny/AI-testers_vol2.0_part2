@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import type { Locators } from '../types/locators';
 
 export class NavigationBar {
@@ -55,5 +55,17 @@ export class NavigationBar {
 
   async logout(): Promise<void> {
     await this.buttons.logout.click();
+  }
+
+  async expectLoggedOut(): Promise<void> {
+    await expect(this.links.login).toBeVisible();
+    await expect(this.links.register).toBeVisible();
+    await expect(this.links.profile).toBeHidden();
+  }
+
+  async expectLoggedInAs(displayName: string): Promise<void> {
+    await expect(this.links.profile).toHaveText(displayName);
+    await expect(this.links.login).toBeHidden();
+    await expect(this.links.register).toBeHidden();
   }
 }

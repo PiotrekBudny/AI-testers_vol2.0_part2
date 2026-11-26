@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { ApiSessions, storageStateFor } from '../api/apiSessions';
 import { AuthApi } from '../api/authApi';
+import { SignInTraffic } from '../assertions/signInTraffic';
 import type { UserRole } from '../config/users';
 import { ProductGenerator } from '../generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '../har/harFile';
@@ -11,8 +12,10 @@ import { HarReplayMock } from '../mocks/harReplayMock';
 import { LivePatchedProductSearchMock } from '../mocks/livePatchedProductSearchMock';
 import type { ApiSession } from '../models/auth';
 import { DashboardPage } from '../pages/dashboardPage';
+import { ForgotPasswordPage } from '../pages/forgotPasswordPage';
 import { LoginPage } from '../pages/loginPage';
 import { ProductsPage } from '../pages/productsPage';
+import { RegisterPage } from '../pages/registerPage';
 
 export type Options = {
   userRole: UserRole;
@@ -26,6 +29,9 @@ type Fixtures = {
   loginPage: LoginPage;
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
+  forgotPasswordPage: ForgotPasswordPage;
+  registerPage: RegisterPage;
+  signInTraffic: SignInTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
   cartItemsMock: CartItemsMock;
   harReplayMock: HarReplayMock;
@@ -111,6 +117,15 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   },
   productsPage: async ({ page }, use) => {
     await use(new ProductsPage(page));
+  },
+  forgotPasswordPage: async ({ page }, use) => {
+    await use(new ForgotPasswordPage(page));
+  },
+  registerPage: async ({ page }, use) => {
+    await use(new RegisterPage(page));
+  },
+  signInTraffic: async ({ page }, use) => {
+    await use(new SignInTraffic(page));
   },
   fakeProductSearchMock: async ({ page }, use) => {
     const mock = new FakeProductSearchMock(

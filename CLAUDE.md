@@ -42,8 +42,11 @@ src/
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
+  pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productsPage.ts                     ProductsPage (/products)
+  pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
   fixtures/test.ts                          test/expect with page object + mock fixtures
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
@@ -57,6 +60,7 @@ src/
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
   auth.spec.ts                              API session accepted by the app; skipAutoLogin
+  loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
@@ -207,10 +211,13 @@ Imports between `src/` files are relative and extensionless.
 - One class per view in `src/pages/`, constructed with `new XPage(page)`,
   exposing `readonly` locators plus action methods (`login`).
 - Every page extends the abstract `BasePage`. It holds `page`, the shared
-  components and `goto()`, which opens `this.url`.
-- Each page declares its exact URL path in its own class:
-  `readonly url = '/login'`. Paths are relative to `baseURL`, so
-  `BASE_URL` still picks the environment. Don't override `goto()` per page.
+  components, `goto()`, which opens `this.url`, and `expectToBeOpen()`,
+  which checks the URL **path** (the query is ignored, for example
+  `?returnTo=`) and the page title.
+- Each page declares its exact URL path and its title in its own class:
+  `readonly url = '/login'`, `readonly title = 'Sign in – Awesome Testing'`.
+  Paths are relative to `baseURL`, so `BASE_URL` still picks the
+  environment. Don't override `goto()` per page.
 - Parts shared across views (navigation, footer, toasts) live in
   `src/components/`, each scoped to its root test id. `BasePage` creates
   them, so every page has `.navigation`, `.footer` and `.toast`.
@@ -257,6 +264,23 @@ Imports between `src/` files are relative and extensionless.
   required` and sets `aria-invalid`. Wrong credentials make
   `POST /api/v1/users/signin` return `422`, with the toast `Error` /
   `Invalid username/password`.
+- Login form links: "Forgot password?" (`login-forgot-link`) and
+  "Register" (`login-register-link`) are `<button>`s, not anchors. They
+  open `/forgot-password` ("Forgot password – Awesome Testing") and
+  `/register` ("Create account – Awesome Testing").
+- `tests/loginPage.spec.ts` is the only spec that uses the UI login form,
+  with `skipAutoLogin` for the whole file. Its successful login signs in
+  for real as the client. The rejected-login test uses a random unknown
+  username, so failed attempts never count against the shared accounts.
+  Its scenarios: valid credentials land on the dashboard; invalid ones
+  show the `Error` toast and `LoginPage.expectToShowLoggedOutForm()` (URL
+  path, title, form, enabled Sign in, logged-out navigation); empty fields
+  show the required errors, stay on the form and send **no** `users/signin`
+  request. `SignInTraffic` records the requests; `expectRejected()` in the
+  invalid-credentials test counts exactly one, which shows the recording
+  works.
+- Opening a page behind login while logged out redirects to
+  `/login?returnTo=<path>` (for example `returnTo=%2Fproducts`).
 - After a successful login the app lands on `/` ("Home – Awesome Testing",
   test ids `home-*`), modelled as `DashboardPage`. The page load calls
   `GET /api/v1/users/me`, `/api/v1/cart` and `/api/v1/currencies`. The
@@ -426,7 +450,8 @@ Imports between `src/` files are relative and extensionless.
     reports the errors.
   - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
     search was served and that `errors` is empty.
-- **API login (`loginViaApi`)**: tests never log in through the UI form.
+- **API login (`loginViaApi`)**: tests never log in through the UI form,
+  except `tests/loginPage.spec.ts`, which tests the form itself.
   The auto `loginViaApi` fixture signs in once per worker with
   `POST /api/v1/users/signin` (`AuthApi.signIn`). The `storageState`
   override starts every context with `token`/`refreshToken` in

@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import type { Locators } from '../types/locators';
 import { BasePage } from './basePage';
 
@@ -6,6 +6,7 @@ type Feature = 'products' | 'profile' | 'llm' | 'traffic' | 'qr' | 'email';
 
 export class DashboardPage extends BasePage {
   readonly url = '/';
+  readonly title = 'Home – Awesome Testing';
 
   readonly root: Locator;
   readonly userEmail: Locator;
@@ -47,5 +48,12 @@ export class DashboardPage extends BasePage {
       qr: page.getByTestId('home-qr-button'),
       email: page.getByTestId('home-email-button'),
     };
+  }
+
+  async expectToWelcome(displayName: string): Promise<void> {
+    const [firstName] = displayName.split(' ');
+    await expect(this.root).toBeVisible();
+    await expect(this.headings.welcome).toHaveText(`Welcome, ${firstName}!`);
+    await this.navigation.expectLoggedInAs(displayName);
   }
 }
