@@ -15,7 +15,7 @@ and every other endpoint keeps working, mocked or live.
 | `ApiErrorMock` | `src/mocks/apiErrorMock.ts` | `respondWithError(endpoint, status, { times?, message? })`, `rejectSession()`, `expectRequestCount(endpoint, n)`, `expectRequestCountToStay(endpoint, n, ms)`, `waitForRequestCount(endpoint, atLeast)`, `requestCount(endpoint)`. |
 | `apiErrorMock` fixture | `src/fixtures/test.ts` | Not `auto`. Request it only in tests that need an error. |
 | Error states in the UI | `src/pages/productsPage.ts` | `expectLoadError()`, `expectStillLoading()`, `retryLoading()`. |
-| Reference spec | `tests/productsPageApiErrors.spec.ts` | 404, 500, Retry recovery, 401 on `/me`. |
+| Reference specs | `tests/productsPageApiErrors.spec.ts`, `tests/productDetailsPage.spec.ts` | Search 404/500, Retry recovery, 401 on `/me`; details 404, cart POST 500. |
 
 The error body imitates the backend: `{status, error, message, path, timestamp}`,
 where `error` is the reason phrase (`Not Found`). `ApiErrorStatus` lists
@@ -81,6 +81,15 @@ next test in that worker (see the api-login skill). So:
   `expectLoadError()` waits up to `SEARCH_RETRY_WINDOW_MS` (15 s) for it.
 - **Retry** sends a new search. When it succeeds, the cards render and the
   error disappears.
+- **Details 404** (`productDetails`, a RegExp route): one request, no
+  retries. Only `product-not-found` (`role="alert"`) renders, with h1
+  "Product not found", "This product does not exist or may have been
+  removed." and "Back to Products". The title is `Product not found –
+  Awesome Testing`. `ProductDetailsPage.expectNotFound()`.
+- **Cart POST 500** (`cartItems`): one POST, no retry. Toast `Error` /
+  "Failed to update cart. Please try again.". "Add to Cart" is enabled
+  again and the quantity is kept. Use `apiErrorMock` *instead of*
+  `cartItemsMock` for that endpoint.
 - **`/me` 401** (opening `/products`): `users/me` → `POST users/refresh`
   (mocked 401) → the app clears `token` and `refreshToken` and lands on
   `/login` (without `returnTo`). There's no toast and no logout request.

@@ -84,5 +84,7 @@ test('out of stock product cannot be added to cart while neighbours can', async 
     'Added to cart',
     `2 × ${available.name} added to your cart`,
   );
-  cartItemsMock.expectAddedItems([{ productId: available.id, quantity: 2 }]);
+  await cartItemsMock.expectAddedItems([
+    { productId: available.id, quantity: 2 },
+  ]);
 });

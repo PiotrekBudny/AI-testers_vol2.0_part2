@@ -36,7 +36,8 @@ src/
   enums/productCategory.ts                  ProductCategory enum
   enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
-  models/product.ts                         Product (one search hit)
+  formatters/price.ts                       formatUsd: en-US USD price text as the app shows it
+  models/product.ts                         Product (one search hit), ProductDetails
   models/auth.ts                            LoginRequest, LoginResponse, ApiSession
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
@@ -44,6 +45,7 @@ src/
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
+  pages/productDetailsPage.ts               ProductDetailsPage (/products/{id}, open(product))
   pages/productsPage.ts                     ProductsPage (/products)
   pages/registerPage.ts                     RegisterPage (/register, url + title only)
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
@@ -54,6 +56,7 @@ src/
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
   mocks/apiRoutes.ts                        route globs shared by mocks and tests, ApiEndpoint
   mocks/cartItemsMock.ts                    fake POST /api/v1/cart/items
+  mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
   mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
@@ -66,6 +69,7 @@ tests/                                      Playwright specs (testDir)
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
+  productDetailsPage.spec.ts                /products/{id}: details, 404, cart 500, out of stock, clicks
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
@@ -159,10 +163,13 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     field): `.claude/hooks/block-force-push.cjs` blocks `--force`, `-f`
     (also in clusters such as `-uf`), `--force=…` and `+refspec` pushes
     (`origin +main`), and allows `--force-with-lease` and
-    `--force-if-includes`. It skips git's global options
-    (`git -C dir push -f`), catches a push later in a chain
-    (`git status && git push -f`), and ignores quoted text
-    (`git commit -m "… git push -f …"` passes).
+    `--force-if-includes`. It skips git's global options and their values
+    (`git -C dir`, `--git-dir .git`, `--work-tree .`), leading `VAR=value`
+    assignments (`GIT_TRACE=1 git push -f`), and treats `&&`, `||`, `;`,
+    `|`, `&` and new lines as command separators
+    (`git status && git push -f`). It ignores quoted text
+    (`git commit -m "… git push -f …"` passes). Verified live: the `git *`
+    filter also fires for env-prefixed and multi-line commands.
 - `.claude/skills/` holds project skills. **api-login** covers API
   authentication in tests and in Playwright MCP. Its `mcp-login.mjs`
   signs in from `.env` and writes a one-off, git-ignored
@@ -436,6 +443,50 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     modelled.
   - `ProductSearchResponseBuilder` output renders correctly on this page
     (checked with a throwaway mocked test).
+- Product details page (`/products/{id}`, title `<name> – Awesome Testing`),
+  modelled as `ProductDetailsPage`. All facts were verified through
+  Playwright MCP:
+  - **URL and title:** both depend on the product, so `url`/`title` are
+    getters. `open(product)` sets them and calls `goto()`;
+    `openById(id)` is for unknown ids (no title).
+  - **Requests on load:** `GET /api/v1/products/{id}` plus `wishlist` and
+    `products/{id}/reviews/summary`, `/reviews?page=0&size=10`,
+    `/reviews/mine`. The details body has no `averageRating` or
+    `reviewCount` (`ProductDetails`).
+  - **Elements:**
+    - `product-back-link` "← Back to Products"
+    - `product-title` (h1), `product-price` (`formatUsd`),
+      `product-description`, `product-category`
+    - `product-stock` "`<n>` in stock"
+    - `product-image` (`alt` = name); not rendered when `imageUrl` is null
+    - quantity: `decrease-quantity` (disabled at 1), `quantity-value`,
+      `increase-quantity` (disabled at quantity == `stockQuantity`)
+    - `add-to-cart` "Add to Cart"
+    - `wishlist-toggle` "Save to wishlist" (a real write, never clicked)
+  - **Section titles** have textContent `Description`, `Category`,
+    `Availability` and `Quantity`, shown uppercase via CSS.
+  - **404 on the details request:** one request, no retries. Only
+    `product-not-found` (`role="alert"`) renders: h1 "Product not found",
+    "This product does not exist or may have been removed." and
+    `product-not-found-back-link` "Back to Products" (→ `/products`).
+    The title becomes `Product not found – Awesome Testing` and there's
+    no toast.
+  - **`stockQuantity: 0`:** `product-stock` reads "Out of stock" and the
+    whole `product-quantity-section` is gone. `add-to-cart` "Add to Cart"
+    is visible but disabled, and a forced click sends nothing.
+    `wishlist-toggle` stays enabled.
+  - **Add to Cart in flight:** while the POST is pending the button reads
+    "Adding to Cart..." and is disabled, so extra clicks (normal, forced,
+    `dispatchEvent`) send nothing: exactly one POST. After the response,
+    each click sends a new `POST {productId, quantity}` with the selected
+    quantity; it isn't cumulative and the quantity doesn't reset. Only
+    one toast is visible at a time.
+  - **Cart 500:** one POST, no retry. Toast `Error` / "Failed to update
+    cart. Please try again.". The button goes back to "Add to Cart",
+    enabled, and the quantity is kept.
+  - **Unknown id with the real reviews API:** the reviews calls return 404
+    and `reviews-error` (`role="alert"`) shows "Unable to load reviews.".
+    `FakeProductDetailsMock` serves empty reviews to avoid this.
 
 ## Mocking conventions
 
@@ -555,9 +606,27 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - **`CartItemsMock`** (fixture `cartItemsMock`, requested only by tests
   that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
   change the shared account's real cart. It records each request body in
-  `addedItems` and answers with a cart priced from
-  `fakeProductSearchMock.products`. A test that clicks Add to Cart must take
-  this fixture.
+  `addedItems` when it arrives and answers with a cart priced from
+  `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`.
+  A test that clicks Add to Cart must take this fixture (or make
+  `cartItems` fail through `apiErrorMock`).
+  - `expectAddedItems(items)` polls `addedItems`. For "nothing sent" or
+    "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
+    checks that nothing more arrives within `ms`.
+  - `holdResponses()` holds every POST until the returned function is
+    called. Tests use it for the "Adding to Cart..." pending state without
+    sleeping. Fixture teardown releases held responses, so a failing test
+    never leaves a route handler hanging.
+- **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
+  registers before the test body.
+  - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or
+    more so it never clashes with the search mock's ids) for
+    `GET /api/v1/products/{id}` (also with a trailing `/` or a query),
+    minus the rating fields.
+  - Serves empty reviews (summary, list, mine) for any product id.
+  - `updateProduct(changes)` uses `Object.assign`.
+  - The `productDetails` and `productReviews` routes in `apiRoutes` are
+    RegExps (`page.route` accepts both), so they never match `search`.
 - **`ApiErrorMock`** (fixture `apiErrorMock`, not `auto`): makes any
   `apiRoutes` endpoint answer with an error status
   (`respondWithError(endpoint, status, { times?, message? })`), with a

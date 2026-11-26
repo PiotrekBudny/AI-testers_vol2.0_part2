@@ -9,6 +9,7 @@ import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
 import { ApiErrorMock } from '@/mocks/apiErrorMock';
 import { CartItemsMock } from '@/mocks/cartItemsMock';
+import { FakeProductDetailsMock } from '@/mocks/fakeProductDetailsMock';
 import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
 import { HarReplayMock } from '@/mocks/harReplayMock';
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
@@ -16,6 +17,7 @@ import type { ApiSession } from '@/models/auth';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
 import { LoginPage } from '@/pages/loginPage';
+import { ProductDetailsPage } from '@/pages/productDetailsPage';
 import { ProductsPage } from '@/pages/productsPage';
 import { RegisterPage } from '@/pages/registerPage';
 
@@ -25,17 +27,21 @@ export type Options = {
   harRecording: boolean;
 };
 
+const DETAILS_PRODUCT_ID_FLOOR = 10_000;
+
 const harUrlFilter = /\/api\/v1\/(products|cart|currencies|users\/me)(\/|\?|$)/;
 
 type Fixtures = {
   loginPage: LoginPage;
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
+  productDetailsPage: ProductDetailsPage;
   forgotPasswordPage: ForgotPasswordPage;
   registerPage: RegisterPage;
   signInTraffic: SignInTraffic;
   productSearchTraffic: ProductSearchTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
+  fakeProductDetailsMock: FakeProductDetailsMock;
   cartItemsMock: CartItemsMock;
   apiErrorMock: ApiErrorMock;
   harReplayMock: HarReplayMock;
@@ -122,6 +128,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   productsPage: async ({ page }, use) => {
     await use(new ProductsPage(page));
   },
+  productDetailsPage: async ({ page }, use) => {
+    await use(new ProductDetailsPage(page));
+  },
   forgotPasswordPage: async ({ page }, use) => {
     await use(new ForgotPasswordPage(page));
   },
@@ -142,14 +151,29 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     await mock.register();
     await use(mock);
   },
-  cartItemsMock: async ({ page, loginViaApi, fakeProductSearchMock }, use) => {
-    const mock = new CartItemsMock(
+  fakeProductDetailsMock: async ({ page }, use) => {
+    const mock = new FakeProductDetailsMock(
       page,
-      loginViaApi?.user.username ?? '',
-      () => fakeProductSearchMock.products,
+      new ProductGenerator().generateProduct({
+        id: DETAILS_PRODUCT_ID_FLOOR + Math.floor(Math.random() * 90_000),
+        stockQuantity: 5 + Math.floor(Math.random() * 46),
+      }),
     );
     await mock.register();
     await use(mock);
+  },
+  cartItemsMock: async (
+    { page, loginViaApi, fakeProductSearchMock, fakeProductDetailsMock },
+    use,
+  ) => {
+    const mock = new CartItemsMock(
+      page,
+      loginViaApi?.user.username ?? '',
+      () => [...fakeProductSearchMock.products, fakeProductDetailsMock.product],
+    );
+    await mock.register();
+    await use(mock);
+    mock.releaseHeldResponses();
   },
   apiErrorMock: async ({ page }, use) => {
     await use(new ApiErrorMock(page));

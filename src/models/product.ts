@@ -13,3 +13,5 @@ export interface Product {
   averageRating: number | null;
   reviewCount: number;
 }
+
+export type ProductDetails = Omit<Product, 'averageRating' | 'reviewCount'>;

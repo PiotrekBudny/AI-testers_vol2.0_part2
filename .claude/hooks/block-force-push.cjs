@@ -1,6 +1,15 @@
 const separators = new Set(['&&', '||', ';', '|', '&']);
 const safeForceFlags = new Set(['--force-with-lease', '--force-if-includes']);
-const optionsWithValue = new Set(['-C', '-c']);
+const optionsWithValue = new Set([
+  '-C',
+  '-c',
+  '--git-dir',
+  '--work-tree',
+  '--namespace',
+  '--super-prefix',
+  '--config-env',
+]);
+const envAssignment = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -38,6 +47,11 @@ function tokenize(command) {
     if (char === '"' || char === "'") {
       quote = char;
       started = true;
+      continue;
+    }
+    if (char === '\n' || char === '\r') {
+      flush();
+      tokens.push(';');
       continue;
     }
     if (/\s/.test(char)) {
@@ -80,11 +94,17 @@ function forceArgument(token) {
 function forceInPush(command) {
   const tokens = tokenize(command);
   for (let index = 0; index < tokens.length; index++) {
-    const startsCommand = index === 0 || separators.has(tokens[index - 1]);
-    if (!startsCommand || tokens[index] !== 'git') {
+    if (index !== 0 && !separators.has(tokens[index - 1])) {
       continue;
     }
-    let cursor = index + 1;
+    let start = index;
+    while (start < tokens.length && envAssignment.test(tokens[start])) {
+      start++;
+    }
+    if (tokens[start] !== 'git') {
+      continue;
+    }
+    let cursor = start + 1;
     while (cursor < tokens.length && tokens[cursor].startsWith('-')) {
       cursor += optionsWithValue.has(tokens[cursor]) ? 2 : 1;
     }
