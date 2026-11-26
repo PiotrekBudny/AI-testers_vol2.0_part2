@@ -170,6 +170,13 @@ export class ProductDetailsPage extends BasePage {
     await expect(this.buttons.addToCart).toBeDisabled();
   }
 
+  async expectInCart(quantity: number): Promise<void> {
+    await expect(this.buttons.addToCart).toHaveText('Update Cart');
+    await expect(this.buttons.addToCart).toBeEnabled();
+    await expect(this.texts.quantity).toHaveText(String(quantity));
+    await this.expectCartCount(quantity);
+  }
+
   async expectReadyToAdd(quantity: number): Promise<void> {
     await expect(this.buttons.addToCart).toHaveText('Add to Cart');
     await expect(this.buttons.addToCart).toBeEnabled();

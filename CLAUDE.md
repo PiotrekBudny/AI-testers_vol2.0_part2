@@ -26,6 +26,7 @@ Playwright + TypeScript end-to-end tests for the shop at
 ```
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
+  components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/footer.ts                      Footer (shared on every view)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
@@ -42,6 +43,7 @@ src/
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
+  pages/cartPage.ts                         CartPage (/cart)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
@@ -55,7 +57,7 @@ src/
   har/recording.ts                          Recording type, readRecording, harFromRecording
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
   mocks/apiRoutes.ts                        route globs shared by mocks and tests, ApiEndpoint
-  mocks/cartItemsMock.ts                    fake POST /api/v1/cart/items
+  mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
@@ -73,6 +75,8 @@ tests/                                      Playwright specs (testDir)
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
   productsPageNetworkErrors.spec.ts         /products: connection drop, recovery after 2 aborts
+  cartPage.spec.ts                          /cart: add/update/remove, seeded, two products, Update rules, clear, links
+  cartPageApiErrors.spec.ts                 /cart negative: PUT 500, DELETE 500, dropped connection on update
   productDetailsPage.spec.ts                /products/{id}: details, 404, cart 500, out of stock, clicks
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
@@ -256,7 +260,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - One class per view in `src/pages/`, constructed with `new XPage(page)`,
   exposing `readonly` locators plus action methods (`login`).
 - Every page extends the abstract `BasePage`. It holds `page`, the shared
-  components, `goto()`, which opens `this.url`, and `expectToBeOpen()`,
+  components, `cartCounter` (the nav cart icon, which renders on every
+  page; `expectCartCount(n)` expects its text, empty at 0), `goto()`, which opens `this.url`, and `expectToBeOpen()`,
   which checks the URL **path** (the query is ignored, for example
   `?returnTo=`) and the page title.
 - Each page declares its exact URL path and its title in its own class:
@@ -281,7 +286,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `navigation.expectLoggedOut()`, `toast.expectToShow(title, text)`,
     `productsPage.expectInStockCount(2)`).
   - **What a mock received or served**: a method on that mock
-    (`cartItemsMock.expectAddedItems(...)`,
+    (`cartMock.expectAddedItems(...)`,
     `livePatchedProductSearchMock.expectServedWithoutErrors(1)`,
     `harReplayMock.expectMatchesRecording(...)`).
   - **Real network traffic** with no mock: an assertion class in
@@ -432,7 +437,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     click sends no request.
   - Intercepting every non-GET request (`page.route('**/*')`) stopped Add to
     Cart from sending anything. Mock only the exact endpoint
-    (`CartItemsMock` routes `**/api/v1/cart/items`).
+    (`CartMock` routes only the cart endpoints).
   - A search `404` shows the error state at once, after one request. A
     `500` is retried with backoff (4 requests at about 0/1/3/7 s, showing
     `product-list-loading` "Loading products..." meanwhile). The error
@@ -492,16 +497,65 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `wishlist-toggle` stays enabled.
   - **Add to Cart in flight:** while the POST is pending the button reads
     "Adding to Cart..." and is disabled, so extra clicks (normal, forced,
-    `dispatchEvent`) send nothing: exactly one POST. After the response,
-    each click sends a new `POST {productId, quantity}` with the selected
-    quantity; it isn't cumulative and the quantity doesn't reset. Only
-    one toast is visible at a time.
+    `dispatchEvent`) send nothing: exactly one POST.
+  - **Product already in the cart** (the app reads `GET /api/v1/cart`):
+    the button reads **"Update Cart"**, the quantity selector shows the
+    cart quantity, and a click sends **`PUT /api/v1/cart/items/{id}`**
+    `{quantity}` with the selected quantity. That _sets_ the quantity, so
+    clicking it again at the same quantity changes nothing. Only a product
+    that isn't in the cart gets `POST /cart/items`. (Earlier specs saw a
+    POST on every click only because the real `GET /cart` stayed empty
+    while the POSTs were mocked.) `expectInCart(quantity)` checks this.
   - **Cart 500:** one POST, no retry. Toast `Error` / "Failed to update
     cart. Please try again.". The button goes back to "Add to Cart",
     enabled, and the quantity is kept.
   - **Unknown id with the real reviews API:** the reviews calls return 404
     and `reviews-error` (`role="alert"`) shows "Unable to load reviews.".
     `FakeProductDetailsMock` serves empty reviews to avoid this.
+- Cart page (`/cart`, "Cart – Awesome Testing"), modelled as `CartPage`
+  with one `CartItemRow` per item (`cartPage.item(productId)`). All facts
+  were mapped from a real HAR and MCP:
+  - **Requests:** the page reads `GET /api/v1/cart` (on every page load
+    and again after every write, often twice). Items hold only
+    `productId` and `quantity`, so the page fetches
+    `GET /api/v1/products/{id}` for names and prices.
+  - **Row test ids carry the product id:** `cart-item-{id}`, `-name-`,
+    `-price-`, `-decrease-`, `-quantity-`, `-increase-`, `-update-`,
+    `-total-`, `-remove-`.
+  - **Summary:** `cart-summary-items-count`, `cart-summary-total-price`,
+    `cart-checkout-button` "Proceed to Checkout", `cart-clear-button`
+    "Clear Cart". The coupon, gift card and loyalty panels aren't
+    modelled.
+  - **Changing the quantity:** + and − only change the shown number.
+    **Update** (`cart-item-update-{id}`) is **absent** until the shown
+    quantity differs from the cart, and disappears again when it matches.
+    − is disabled at 1 and + at `stockQuantity`. Nothing is sent until
+    Update (`PUT /cart/items/{id}`), after which the toast reads
+    `Cart updated` / "`<name>` quantity set to `<n>`".
+    `CartItemRow.changeQuantityWithoutSaving`, `saveQuantity`,
+    `setQuantity` (both steps), `expectUnsavedQuantity`,
+    `expectSavedQuantity` and `expectQuantityLimits` cover it.
+  - **Remove:** `DELETE /cart/items/{id}`, toast `Removed from cart` /
+    "`<name>` has been removed from your cart". With no items left the page
+    shows `cart-empty` and "Browse Products".
+  - **Clear Cart** opens a **native `confirm()`**: "Are you sure you want
+    to clear your cart?". Accepting sends `DELETE /api/v1/cart` and shows
+    the toast `Cart cleared` / "All items have been removed from your
+    cart". Dismissing sends nothing. `CartPage.clearCart('accept' |
+    'dismiss')` answers it, and `expectClearConfirmationAsked()` checks
+    the message.
+  - **Errors:** a failed `PUT` (500 or a dropped connection) shows toast
+    `Error` / "Failed to update cart. Please try again." and the shown
+    quantity **goes back** to the saved one. A failed `DELETE` shows
+    `Error` / "Failed to remove from cart. Please try again." and the row
+    stays. Neither is retried (`tests/cartPageApiErrors.spec.ts`).
+  - **Toasts stack:** several can be visible at once, so
+    `Toast.expectToShow(title, description)` looks for the **one**
+    toast (`li`) that has both texts.
+  - **Cart counter:** the nav cart icon (`desktop-cart-icon`, on every
+    page) shows `totalItems` as text (units, not lines), empty at 0. Its
+    `aria-label` reads `Cart, 1 item`. `BasePage.cartCounter` /
+    `expectCartCount(n)`.
 
 ## Mocking conventions
 
@@ -636,18 +690,34 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     rating or stock, or sort. It serves matches in their given order.
   - It records each request's `q` (`null` when absent) in
     `receivedQueries`. `expectLastSearchedFor(query)` polls the last one.
-- **`CartItemsMock`** (fixture `cartItemsMock`, requested only by tests
-  that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
-  change the shared account's real cart. It records each request body in
-  `addedItems` when it arrives and answers with a cart priced from
-  `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`.
-  A test that clicks Add to Cart must take this fixture (or make
-  `cartItems` fail through `apiErrorMock`).
+- **`CartMock`** (fixture `cartMock`, requested only by tests that touch
+  the cart) is a **stateful** fake cart, so tests never change the shared
+  account's real cart.
+  - Each test gets its own instance, so its own empty item map; nothing is
+    shared between tests.
+  - It serves `GET /api/v1/cart` from that state, and updates it on
+    `POST /cart/items` (adds to the quantity), `PUT /cart/items/{id}`
+    (sets it; 0 removes), `DELETE /cart/items/{id}` and `DELETE /cart`.
+    PUT or DELETE of an item that isn't in the cart answers 404
+    `{"message":"Cart item not found"}`. These match the real backend,
+    verified through MCP with cleanup; the 404 for PUT is assumed.
+  - Every write answers with the whole cart: `{username, items:
+    [{productId, quantity}], totalPrice, totalItems}`. Prices come from
+    `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`;
+    an item whose product is in neither throws a clear error instead of
+    being priced at $0.
+  - `seed(items)` starts a test with items. `cart()` returns the current
+    cart, `expectCartItems(items)` polls the state, and `addedItems` /
+    `updatedItems` log the POST / PUT bodies (`expectAddedItems`,
+    `expectUpdatedItems`).
+  - A test that clicks Add to Cart must take this fixture, or make
+    `cartItems` fail through `apiErrorMock`.
   - `expectAddedItems(items)` polls `addedItems`. For "nothing sent" or
     "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
     checks that nothing more arrives within `ms`.
-  - `holdResponses()` holds every POST until the returned function is
-    called. Tests use it for the "Adding to Cart..." pending state without
+  - `holdResponses()` holds every write until the returned function is
+    called. The change is applied only on release, so a `GET /cart` during
+    the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test
     never leaves a route handler hanging.
 - **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
@@ -655,7 +725,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or
     more so it never clashes with the search mock's ids) for
     `GET /api/v1/products/{id}` (also with a trailing `/` or a query),
-    minus the rating fields.
+    minus the rating fields. Unknown ids get 404 `Product not found`.
+    `alsoServe(products)` adds more products by id. Only the `cartMock`
+    fixture calls it, with `fakeProductSearchMock.products`, because the
+    cart page fetches the details of every cart line. So requesting
+    `fakeProductDetailsMock` alone doesn't pull in a fake search.
   - Serves empty reviews (summary, list, mine) for any product id.
   - `updateProduct(changes)` uses `Object.assign`.
   - The `productDetails` and `productReviews` routes in `apiRoutes` are

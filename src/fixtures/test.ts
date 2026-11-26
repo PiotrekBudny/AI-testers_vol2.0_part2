@@ -8,7 +8,7 @@ import type { UserRole } from '@/config/users';
 import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
 import { ApiErrorMock } from '@/mocks/apiErrorMock';
-import { CartItemsMock } from '@/mocks/cartItemsMock';
+import { CartMock } from '@/mocks/cartMock';
 import { FakeProductDetailsMock } from '@/mocks/fakeProductDetailsMock';
 import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
 import { HarReplayMock } from '@/mocks/harReplayMock';
@@ -16,6 +16,7 @@ import { LivePatchedProductDetailsMock } from '@/mocks/livePatchedProductDetails
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
 import { NetworkErrorMock } from '@/mocks/networkErrorMock';
 import type { ApiSession } from '@/models/auth';
+import { CartPage } from '@/pages/cartPage';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
 import { LoginPage } from '@/pages/loginPage';
@@ -38,13 +39,14 @@ type Fixtures = {
   dashboardPage: DashboardPage;
   productsPage: ProductsPage;
   productDetailsPage: ProductDetailsPage;
+  cartPage: CartPage;
   forgotPasswordPage: ForgotPasswordPage;
   registerPage: RegisterPage;
   signInTraffic: SignInTraffic;
   productSearchTraffic: ProductSearchTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
   fakeProductDetailsMock: FakeProductDetailsMock;
-  cartItemsMock: CartItemsMock;
+  cartMock: CartMock;
   apiErrorMock: ApiErrorMock;
   networkErrorMock: NetworkErrorMock;
   harReplayMock: HarReplayMock;
@@ -135,6 +137,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   productDetailsPage: async ({ page }, use) => {
     await use(new ProductDetailsPage(page));
   },
+  cartPage: async ({ page }, use) => {
+    await use(new CartPage(page));
+  },
   forgotPasswordPage: async ({ page }, use) => {
     await use(new ForgotPasswordPage(page));
   },
@@ -166,15 +171,15 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     await mock.register();
     await use(mock);
   },
-  cartItemsMock: async (
+  cartMock: async (
     { page, loginViaApi, fakeProductSearchMock, fakeProductDetailsMock },
     use,
   ) => {
-    const mock = new CartItemsMock(
-      page,
-      loginViaApi?.user.username ?? '',
-      () => [...fakeProductSearchMock.products, fakeProductDetailsMock.product],
-    );
+    fakeProductDetailsMock.alsoServe(() => fakeProductSearchMock.products);
+    const mock = new CartMock(page, loginViaApi?.user.username ?? '', () => [
+      ...fakeProductSearchMock.products,
+      fakeProductDetailsMock.product,
+    ]);
     await mock.register();
     await use(mock);
     mock.releaseHeldResponses();

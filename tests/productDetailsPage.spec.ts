@@ -61,7 +61,7 @@ test('client sees error toast when adding to cart fails with 500', async ({
 test('out of stock product cannot be added to cart', async ({
   productDetailsPage,
   fakeProductDetailsMock,
-  cartItemsMock,
+  cartMock,
 }) => {
   fakeProductDetailsMock.updateProduct({ stockQuantity: 0 });
 
@@ -72,16 +72,16 @@ test('out of stock product cannot be added to cart', async ({
   await productDetailsPage.forceAddToCart();
 
   await productDetailsPage.expectOutOfStock();
-  await cartItemsMock.expectAddedItemsToStay([], NO_RETRY_WINDOW_MS);
+  await cartMock.expectAddedItemsToStay([], NO_RETRY_WINDOW_MS);
 });
 
 test('repeated clicks while adding to cart send one request', async ({
   productDetailsPage,
   fakeProductDetailsMock,
-  cartItemsMock,
+  cartMock,
 }) => {
   const { product } = fakeProductDetailsMock;
-  const releaseCart = cartItemsMock.holdResponses();
+  const releaseCart = cartMock.holdResponses();
   await productDetailsPage.open(product);
 
   await productDetailsPage.addToCart();
@@ -94,31 +94,29 @@ test('repeated clicks while adding to cart send one request', async ({
     'Added to cart',
     `1 × ${product.name} added to your cart`,
   );
-  await productDetailsPage.expectReadyToAdd(1);
-  await cartItemsMock.expectAddedItemsToStay(
+  await productDetailsPage.expectInCart(1);
+  await cartMock.expectAddedItemsToStay(
     [{ productId: product.id, quantity: 1 }],
     NO_RETRY_WINDOW_MS,
   );
 });
 
-test('each click after the previous add completes adds again', async ({
+test('adding a product already in the cart sets its quantity with PUT', async ({
   productDetailsPage,
   fakeProductDetailsMock,
-  cartItemsMock,
+  cartMock,
 }) => {
   const { product } = fakeProductDetailsMock;
   await productDetailsPage.open(product);
 
   await productDetailsPage.addToCart();
-  await productDetailsPage.toast.expectToShow(
-    'Added to cart',
-    `1 × ${product.name} added to your cart`,
-  );
+  await productDetailsPage.expectCartCount(1);
   await productDetailsPage.addToCart();
 
-  await productDetailsPage.expectReadyToAdd(1);
-  await cartItemsMock.expectAddedItems([
-    { productId: product.id, quantity: 1 },
-    { productId: product.id, quantity: 1 },
-  ]);
+  await cartMock.expectUpdatedItems([{ productId: product.id, quantity: 1 }]);
+  await cartMock.expectAddedItemsToStay(
+    [{ productId: product.id, quantity: 1 }],
+    NO_RETRY_WINDOW_MS,
+  );
+  await productDetailsPage.expectInCart(1);
 });

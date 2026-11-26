@@ -153,7 +153,7 @@ next test in that worker (see the api-login skill). So:
 - **Cart POST 500** (`cartItems`): one POST, no retry. Toast `Error` /
   "Failed to update cart. Please try again.". "Add to Cart" is enabled
   again and the quantity is kept. Use `apiErrorMock` *instead of*
-  `cartItemsMock` for that endpoint.
+  `cartMock` for that endpoint.
 - **`/me` 401** (opening `/products`): `users/me` → `POST users/refresh`
   (mocked 401) → the app clears `token` and `refreshToken` and lands on
   `/login` (without `returnTo`). There's no toast and no logout request.

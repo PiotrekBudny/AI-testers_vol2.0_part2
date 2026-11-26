@@ -61,7 +61,7 @@ test('product with very long name and description keeps card layout', async ({
 test('out of stock product cannot be added to cart while neighbours can', async ({
   productsPage,
   fakeProductSearchMock,
-  cartItemsMock,
+  cartMock,
 }) => {
   fakeProductSearchMock.products = new ProductGenerator().generateProducts(3, {
     stockQuantity: 25,
@@ -84,7 +84,5 @@ test('out of stock product cannot be added to cart while neighbours can', async 
     'Added to cart',
     `2 × ${available.name} added to your cart`,
   );
-  await cartItemsMock.expectAddedItems([
-    { productId: available.id, quantity: 2 },
-  ]);
+  await cartMock.expectAddedItems([{ productId: available.id, quantity: 2 }]);
 });
