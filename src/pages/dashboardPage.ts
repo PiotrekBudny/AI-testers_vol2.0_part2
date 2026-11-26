@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { Locators } from '../types/locators';
+import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
 type Feature = 'products' | 'profile' | 'llm' | 'traffic' | 'qr' | 'email';

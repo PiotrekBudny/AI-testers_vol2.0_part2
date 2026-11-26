@@ -1,4 +1,4 @@
-import type { User } from '../config/users';
+import type { User } from '@/config/users';
 
 export interface LoginRequest {
   username: string;

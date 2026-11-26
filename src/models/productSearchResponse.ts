@@ -1,4 +1,4 @@
-import type { ProductCategory } from '../enums/productCategory';
+import type { ProductCategory } from '@/enums/productCategory';
 import type { Product } from './product';
 
 export interface CategoryFacet {
@@ -6,7 +6,6 @@ export interface CategoryFacet {
   count: number;
 }
 
-/** Both values are null when no product matches. */
 export interface PriceRange {
   min: number | null;
   max: number | null;
@@ -18,7 +17,6 @@ export interface ProductSearchFacets {
   inStockCount: number;
 }
 
-/** Response body of GET /api/v1/products/search. */
 export interface ProductSearchResponse {
   content: Product[];
   pageNumber: number;

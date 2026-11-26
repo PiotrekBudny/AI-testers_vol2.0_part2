@@ -40,7 +40,7 @@ there's no admin page object. Add them when a test first needs them (see below).
 - One file per area: **`tests/admin<Area>.spec.ts`**, for example `adminDashboard.spec.ts` or `adminProducts.spec.ts`. Set the role once at the top, and never mix client and admin tests in one file. The example assumes an `AdminDashboardPage` with its fixture, which doesn't exist yet (see Page objects below):
 
   ```ts
-  import { expect, test } from '../src/fixtures/test';
+  import { expect, test } from '@/fixtures/test';
 
   test.use({ userRole: 'admin' });
 

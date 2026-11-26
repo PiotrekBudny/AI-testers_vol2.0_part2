@@ -5,14 +5,14 @@ import {
   type Request,
   type Response,
 } from '@playwright/test';
-import type { UserRole } from '../config/users';
-import { pathAndQuery, writeHar } from '../har/harFile';
+import type { UserRole } from '@/config/users';
+import { pathAndQuery, writeHar } from '@/har/harFile';
 import {
   findEntry,
   harFromRecording,
   type Recording,
   readRecording,
-} from '../har/recording';
+} from '@/har/recording';
 
 export class HarReplayMock {
   constructor(

@@ -1,22 +1,14 @@
-import { ProductGenerator } from '../generators/productGenerator';
-import type { Product } from '../models/product';
+import { ProductGenerator } from '@/generators/productGenerator';
+import type { Product } from '@/models/product';
 import type {
   CategoryFacet,
   ProductSearchFacets,
   ProductSearchResponse,
-} from '../models/productSearchResponse';
+} from '@/models/productSearchResponse';
 
-// The API defaults to 20, but the frontend always requests size=12.
 const DEFAULT_PAGE_SIZE = 12;
 const DEFAULT_PRODUCT_COUNT = 8;
 
-/**
- * Builds a GET /api/v1/products/search response.
- *
- * `withProducts` takes every product matching the search; `build` cuts out the
- * requested page into `content` and derives totals and facets from all of them,
- * the same way the backend does.
- */
 export class ProductSearchResponseBuilder {
   private products: Product[] | undefined;
   private pageNumber = 0;
@@ -68,7 +60,6 @@ function buildFacets(products: Product[]): ProductSearchFacets {
     counts.set(category, (counts.get(category) ?? 0) + 1);
   }
 
-  // Spec: "largest first, then by value".
   const categories = [...counts]
     .map(([value, count]) => ({ value, count }))
     .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));

@@ -1,11 +1,7 @@
 import { expect, type Locator } from '@playwright/test';
-import type { Product } from '../models/product';
-import type { Locators } from '../types/locators';
-
-const usdPrice = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-});
+import { formatUsd } from '@/formatters/price';
+import type { Product } from '@/models/product';
+import type { Locators } from '@/types/locators';
 
 const NAME_MAX_LINES = 2;
 const DESCRIPTION_MAX_LINES = 3;
@@ -94,7 +90,7 @@ export class ProductCard {
       `/products/${product.id}`,
     );
     await expect(this.texts.description).toHaveText(product.description);
-    await expect(this.texts.price).toHaveText(usdPrice.format(product.price));
+    await expect(this.texts.price).toHaveText(formatUsd(product.price));
     await expect(this.texts.category).toHaveText(product.category);
     await expect(this.texts.rating).toHaveText(this.ratingText(product));
     await expect(this.image).toHaveAttribute('alt', product.name);

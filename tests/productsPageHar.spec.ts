@@ -1,6 +1,6 @@
-import { test } from '../src/fixtures/test';
-import { singleEntry } from '../src/har/recording';
-import type { ProductSearchResponse } from '../src/models/productSearchResponse';
+import { test } from '@/fixtures/test';
+import { singleEntry } from '@/har/recording';
+import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
 test('client sees products replayed from the recorded search', async ({
   productsPage,

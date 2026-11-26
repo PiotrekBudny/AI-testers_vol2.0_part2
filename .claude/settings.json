@@ -10,5 +10,41 @@
       "PowerShell(Get-ChildItem *)",
       "PowerShell(Select-Object *)"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-checks.cjs\"",
+            "timeout": 120,
+            "statusMessage": "Running typecheck and Biome..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-force-push.cjs\"",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "if": "PowerShell(git *)",
+            "shell": "bash",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-force-push.cjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
   }
 }

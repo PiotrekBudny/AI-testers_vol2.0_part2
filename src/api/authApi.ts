@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
-import type { User } from '../config/users';
-import type { ApiSession, LoginRequest, LoginResponse } from '../models/auth';
+import type { User } from '@/config/users';
+import type { ApiSession, LoginRequest, LoginResponse } from '@/models/auth';
 
 export class AuthApi {
   static readonly signInPath = '/api/v1/users/signin';

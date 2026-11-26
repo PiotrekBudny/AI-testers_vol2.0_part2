@@ -1,4 +1,4 @@
-import { test } from '../src/fixtures/test';
+import { test } from '@/fixtures/test';
 
 test('client is logged in by the API session without the login form', async ({
   dashboardPage,
