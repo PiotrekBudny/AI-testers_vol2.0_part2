@@ -1,5 +1,6 @@
 const separators = new Set(['&&', '||', ';', '|', '&']);
 const safeForceFlags = new Set(['--force-with-lease', '--force-if-includes']);
+const optionsWithValue = new Set(['-C', '-c']);
 
 function readStdin() {
   return new Promise((resolve) => {
@@ -13,33 +14,79 @@ function readStdin() {
 }
 
 function tokenize(command) {
-  return command
-    .replace(/(&&|\|\||[;|&])/g, ' $1 ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((token) => token.replace(/^['"]|['"]$/g, ''));
+  const tokens = [];
+  let current = '';
+  let quote = null;
+  let started = false;
+  const flush = () => {
+    if (started) {
+      tokens.push(current);
+    }
+    current = '';
+    started = false;
+  };
+  for (let index = 0; index < command.length; index++) {
+    const char = command[index];
+    if (quote !== null) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      started = true;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      flush();
+      continue;
+    }
+    const pair = command.slice(index, index + 2);
+    if (pair === '&&' || pair === '||') {
+      flush();
+      tokens.push(pair);
+      index++;
+      continue;
+    }
+    if (char === ';' || char === '|' || char === '&') {
+      flush();
+      tokens.push(char);
+      continue;
+    }
+    current += char;
+    started = true;
+  }
+  flush();
+  return tokens;
 }
 
-function isForceFlag(token) {
+function forceArgument(token) {
+  if (token.startsWith('+') && token.length > 1) {
+    return token;
+  }
   const [flag] = token.split('=');
   if (safeForceFlags.has(flag)) {
-    return false;
+    return null;
   }
-  if (flag === '--force') {
-    return true;
+  if (flag === '--force' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(flag)) {
+    return token;
   }
-  return /^-[a-zA-Z]*f[a-zA-Z]*$/.test(flag);
+  return null;
 }
 
-function forceFlagInPush(command) {
+function forceInPush(command) {
   const tokens = tokenize(command);
   for (let index = 0; index < tokens.length; index++) {
-    if (tokens[index] !== 'git') {
+    const startsCommand = index === 0 || separators.has(tokens[index - 1]);
+    if (!startsCommand || tokens[index] !== 'git') {
       continue;
     }
     let cursor = index + 1;
     while (cursor < tokens.length && tokens[cursor].startsWith('-')) {
-      cursor += tokens[cursor] === '-C' || tokens[cursor] === '-c' ? 2 : 1;
+      cursor += optionsWithValue.has(tokens[cursor]) ? 2 : 1;
     }
     if (tokens[cursor] !== 'push') {
       continue;
@@ -48,8 +95,9 @@ function forceFlagInPush(command) {
       if (separators.has(tokens[arg])) {
         break;
       }
-      if (isForceFlag(tokens[arg])) {
-        return tokens[arg];
+      const forced = forceArgument(tokens[arg]);
+      if (forced !== null) {
+        return forced;
       }
     }
   }
@@ -58,12 +106,12 @@ function forceFlagInPush(command) {
 
 readStdin().then((raw) => {
   const command = JSON.parse(raw || '{}').tool_input?.command ?? '';
-  const flag = forceFlagInPush(command);
-  if (flag === null) {
+  const forced = forceInPush(command);
+  if (forced === null) {
     process.exit(0);
   }
   process.stderr.write(
-    `Blocked: "git push ${flag}" rewrites remote history. Use --force-with-lease (optionally with --force-if-includes) instead, or ask the user to run the force push themselves.\n`,
+    `Blocked: "git push ${forced}" rewrites remote history. Use --force-with-lease (optionally with --force-if-includes) instead, or ask the user to run the force push themselves.\n`,
   );
   process.exit(2);
 });
