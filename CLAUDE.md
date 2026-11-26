@@ -30,23 +30,42 @@ src/
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
+  api/authApi.ts                            AuthApi: POST /api/v1/users/signin
+  api/apiSessions.ts                        per-worker session cache, storageStateFor
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
   enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   models/product.ts                         Product (one search hit)
+  models/auth.ts                            LoginRequest, LoginResponse, ApiSession
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
+  pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productsPage.ts                     ProductsPage (/products)
+  pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
+  assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
   fixtures/test.ts                          test/expect with page object + mock fixtures
-  mocks/cartItemsMock.ts                    route mock for POST /api/v1/cart/items
-  mocks/productSearchMock.ts                route mock for GET /api/v1/products/search
+  har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
+  har/recording.ts                          Recording type, readRecording, harFromRecording
+  mocks/apiRoutes.ts                        route globs shared by mocks and tests
+  mocks/cartItemsMock.ts                    fake POST /api/v1/cart/items
+  mocks/fakeProductSearchMock.ts            fake product search (generated products)
+  mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
+  mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
+  mocks/recorded/productSearch.json         committed recording of GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
+hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
+  auth.spec.ts                              API session accepted by the app; skipAutoLogin
+  loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
+  productsPageHar.spec.ts                   /products: replay of the productSearch recording
+  productsPageLivePatched.spec.ts           /products: real search, first product patched
+  productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
 ```
 
@@ -70,6 +89,9 @@ Imports between `src/` files are relative and extensionless.
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
   forbids classes with only static members, so use instance methods).
+  `biome.json` excludes `.claude/skills/**/SKILL.md`, because Biome's
+  Markdown formatter breaks YAML frontmatter (it inserts a blank line
+  after the opening `---` and turns a leading `+` into a list).
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
@@ -111,6 +133,14 @@ Imports between `src/` files are relative and extensionless.
   each user to approve project MCP servers on first use. The server writes
   snapshots and console logs to `.playwright-mcp/` (git-ignored).
 - `.claude/settings.json` holds a shared allowlist of read-only commands.
+- `.claude/skills/` holds project skills. **api-login** covers API
+  authentication in tests and in Playwright MCP. Its `mcp-login.mjs`
+  signs in from `.env` and writes a one-off, git-ignored
+  `.playwright-mcp/api-login.js` for `browser_run_code_unsafe`, so the
+  password never appears in MCP tool arguments. **har-to-mock** captures
+  real traffic locally into recordings for HAR replay tests (see
+  `HarReplayMock` below). **admin-login** covers acting as `ROLE_ADMIN` in
+  tests and in Playwright MCP, including the live-write rules.
 
 ## Playwright config
 
@@ -118,11 +148,12 @@ Imports between `src/` files are relative and extensionless.
   the variables: `BASE_URL`, then `CLIENT_USERNAME`, `CLIENT_PASSWORD`,
   `CLIENT_DISPLAY_NAME` and the same three `ADMIN_*` variables (a regular
   customer account and an admin account). The real values go in `.env`
-  (git-ignored).
+  (git-ignored). A shell variable wins over `.env`, because dotenv doesn't
+  override variables that are already set.
 - `getUser(role)` in `src/config/users.ts` reads the account variables when
   called, not at import. It throws a clear error if one is missing, so
   specs that never log in run without them. Use
-  `loginPage.loginAs(getUser('client'))`.
+  `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
 - On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
   reporters. `json` writes `test-results/results.json`, which feeds the CI
@@ -131,6 +162,24 @@ Imports between `src/` files are relative and extensionless.
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
   locally. The single project is `mockingTests` (Desktop Chrome).
+- HAR recording is the `harRecording` option fixture, set in the config
+  to `!isCI`, so it's **on locally only**. The config is typed
+  `defineConfig<Options>` to accept it.
+  - The fixture overrides the built-in `contextOptions` with `recordHar`,
+    so every test (and every retry) writes its own
+    `test-results/<test>/network.har` and attaches it to the HTML report
+    (skipped when no file was written, for example when the context never
+    opened, and when the sanitized HAR has no entries, for example login
+    form tests, whose only call, `users/signin`, is not on the allowlist).
+  - `harUrlFilter` is an **allowlist**: `/api/v1/` `products`, `cart`,
+    `currencies` and `users/me` only. Auth endpoints (sign-in, a token
+    refresh, register) are never recorded, so passwords and refresh tokens
+    stay out. Add an endpoint there when a test needs it in the HAR.
+  - After the context closes, the fixture runs `sanitizeHar` on the file
+    before attaching it. So the attachments have no bearer token, session
+    id or cookies, which was verified on all 8 attachments. Response bodies
+    stay, for example the `users/me` profile. Still don't turn it on for
+    CI while the report is uploaded.
 
 ## API facts: `GET /api/v1/products/search`
 
@@ -163,10 +212,13 @@ Imports between `src/` files are relative and extensionless.
 - One class per view in `src/pages/`, constructed with `new XPage(page)`,
   exposing `readonly` locators plus action methods (`login`).
 - Every page extends the abstract `BasePage`. It holds `page`, the shared
-  components and `goto()`, which opens `this.url`.
-- Each page declares its exact URL path in its own class:
-  `readonly url = '/login'`. Paths are relative to `baseURL`, so
-  `BASE_URL` still picks the environment. Don't override `goto()` per page.
+  components, `goto()`, which opens `this.url`, and `expectToBeOpen()`,
+  which checks the URL **path** (the query is ignored, for example
+  `?returnTo=`) and the page title.
+- Each page declares its exact URL path and its title in its own class:
+  `readonly url = '/login'`, `readonly title = 'Sign in – Awesome Testing'`.
+  Paths are relative to `baseURL`, so `BASE_URL` still picks the
+  environment. Don't override `goto()` per page.
 - Parts shared across views (navigation, footer, toasts) live in
   `src/components/`, each scoped to its root test id. `BasePage` creates
   them, so every page has `.navigation`, `.footer` and `.toast`.
@@ -174,6 +226,31 @@ Imports between `src/` files are relative and extensionless.
   `expect` from `src/fixtures/test.ts`, not from `@playwright/test`, and
   take `loginPage`, `dashboardPage`, `productsPage` as test arguments. Every
   new page object gets a fixture there.
+
+### Rule: no assertions in tests
+
+- Specs contain no `expect(...)` calls. A test arranges, acts and calls
+  named `expect…` methods, so it reads as the scenario.
+- Where an assertion goes:
+  - **UI state**: a method on the page object or component that owns
+    the elements (`loginPage.expectRequiredErrors(['password'])`,
+    `navigation.expectLoggedOut()`, `toast.expectToShow(title, text)`,
+    `productsPage.expectInStockCount(2)`).
+  - **What a mock received or served**: a method on that mock
+    (`cartItemsMock.expectAddedItems(...)`,
+    `livePatchedProductSearchMock.expectServedWithoutErrors(1)`,
+    `harReplayMock.expectMatchesRecording(...)`).
+  - **Real network traffic** with no mock: an assertion class in
+    `src/assertions/`. It starts listening in its constructor, so its
+    fixture must be requested before the action. `SignInTraffic`
+    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent`) and
+    `ProductSearchTraffic` (`expectOkWithProducts()` returns the body).
+- Name methods `expect` + what is true afterwards, written from the
+  user's view: `expectToWelcome(displayName)`, `expectToShowLoggedOutForm()`.
+- Compose instead of repeating: `expectToShowLoggedOutForm()` uses
+  `expectToBeOpen()` and `navigation.expectLoggedOut()`.
+- Waiting is not asserting: use `locator.waitFor()` when a test only needs
+  the page to be ready.
 
 ### Rule: prefer `data-testid` locators
 
@@ -213,6 +290,23 @@ Imports between `src/` files are relative and extensionless.
   required` and sets `aria-invalid`. Wrong credentials make
   `POST /api/v1/users/signin` return `422`, with the toast `Error` /
   `Invalid username/password`.
+- Login form links: "Forgot password?" (`login-forgot-link`) and
+  "Register" (`login-register-link`) are `<button>`s, not anchors. They
+  open `/forgot-password` ("Forgot password – Awesome Testing") and
+  `/register` ("Create account – Awesome Testing").
+- `tests/loginPage.spec.ts` is the only spec that uses the UI login form,
+  with `skipAutoLogin` for the whole file. Its successful login signs in
+  for real as the client. The rejected-login test uses a random unknown
+  username, so failed attempts never count against the shared accounts.
+  Its scenarios: valid credentials land on the dashboard; invalid ones
+  show the `Error` toast and `LoginPage.expectToShowLoggedOutForm()` (URL
+  path, title, form, enabled Sign in, logged-out navigation); empty fields
+  show the required errors, stay on the form and send **no** `users/signin`
+  request. `SignInTraffic` records the requests; `expectRejected()` in the
+  invalid-credentials test counts exactly one, which shows the recording
+  works.
+- Opening a page behind login while logged out redirects to
+  `/login?returnTo=<path>` (for example `returnTo=%2Fproducts`).
 - After a successful login the app lands on `/` ("Home – Awesome Testing",
   test ids `home-*`), modelled as `DashboardPage`. The page load calls
   `GET /api/v1/users/me`, `/api/v1/cart` and `/api/v1/currencies`. The
@@ -306,24 +400,95 @@ Imports between `src/` files are relative and extensionless.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
-- Tests log in for real. Only the product search endpoint is mocked.
-- **`loggedInUser`** is an `auto` fixture, so it runs before every test
-  without being requested. It logs in through `LoginPage` as
-  `getUser(userRole)` and waits until the navigation's profile link shows
-  the display name. A test then opens its page directly with `goto()`
-  (for example `productsPage.goto()`), not through the dashboard.
-  - `userRole` is an option fixture: `'client'` (default), `'admin'`
-    (unverified, see open questions), or `null` to stay logged out.
-    Set it per file or `describe` with `test.use({ userRole: ... })`.
-    Login page tests must use `null`.
-  - It yields the `User`, or `null` when logged out. Request it only when
-    the test needs the user's data.
-  - It's `auto` because a test that asked for it only to trigger login
-    would trip Biome's `noUnusedFunctionParameters`.
-- **`ProductSearchMock`** (fixture `productSearchMock`): the fixture creates
-  it with 8 generated products and registers the route before the test
+- Login is real but goes through the API, once per worker (see API login
+  below). The mocks cover only the endpoints a test asks for.
+- Three kinds of product search mock. The class name starts with the
+  kind, and each fixture and file is the class name in camelCase
+  (`FakeProductSearchMock` → `fakeProductSearchMock`):
+
+  | Kind         | Class / fixture                | Calls the real API?   | Data                      |
+  | ------------ | ------------------------------ | --------------------- | ------------------------- |
+  | Fake         | `FakeProductSearchMock`        | No                    | generated by Faker        |
+  | HAR replay   | `HarReplayMock`                | No (capture is local) | real, committed recording |
+  | Live patched | `LivePatchedProductSearchMock` | Yes, every request    | real, with a transform    |
+  | None (live)  | no mock fixture requested      | Yes                   | real, unchanged           |
+
+  `HarReplayMock` isn't tied to product search: `serve(name)` replays any
+  recording.
+  Route globs live in `apiRoutes` (`src/mocks/apiRoutes.ts`), not on a
+  mock class, so the mocks don't depend on each other.
+- No mock is `auto`: a test that doesn't request one hits the real API.
+  `tests/productsPageLive.spec.ts` does this on purpose. It waits for
+  the real `GET /api/v1/products/search` response and checks the cards
+  against its `content`, so it doesn't depend on fixed seed data.
+  Locally its HAR (`users/me`, `cart`, `currencies`,
+  `products/search?page=0&size=12`) is a real-traffic source for building
+  HAR mocks. It runs on CI too, against the live API, without a HAR.
+- **`HarReplayMock`** (fixture `harReplayMock`) replays committed
+  **recordings**, never a HAR from git and never the live API:
+  - A recording is `src/mocks/recorded/<name>.json` (`Recording` in
+    `src/har/recording.ts`): the `capture` settings (`page`, `route`,
+    `role`) and `entries` with `method`, `url` (path + query), `status`,
+    `contentType` and the parsed `body`. No headers, cookies or tokens.
+  - `serve(name)` builds a HAR from it (`harFromRecording`) for the test's
+    `baseURL` origin in `test-results/<test>/har-work/`. It then calls
+    `page.routeFromHAR` for `capture.route` with `notFound: 'abort'`, and
+    returns the recording. Replay matches URL (with query) and method
+    strictly. Building per origin makes a recording work on any
+    `BASE_URL`.
+  - `waitForReplayedResponse(method, url)`: start it before the
+    navigation and await it after. A request missing from the recording
+    is aborted and never produces a response, so the helper races
+    `requestfailed` and fails at once, naming the URL.
+    `expectMatchesRecording(recording, response)` checks status and body.
+    `singleEntry` / `findEntry` read entries, and
+    `waitForReplayedResponse` takes the entry's `url` (path + query).
+    `serve()` fails when the recording's `capture.role` differs from the
+    test's `userRole`.
+  - Verified: a `CI=1` run with no raw HAR present passed. The replayed
+    search had no Cloudflare `cf-ray` header, so it never reached the
+    server.
+  - Recordings are captured and refreshed **locally** with the
+    **har-to-mock** skill (`.claude/skills/har-to-mock/SKILL.md`,
+    `node .claude/skills/har-to-mock/capture.mjs <name>`). It also writes
+    the raw, cleaned `hars/<name>.har`, which is git-ignored. Its
+    procedure, safety rules and the way to add a new recording live
+    there. There's no capture spec or project.
+  - Don't hand-edit recordings to shape data (a refresh overwrites
+    them). Use `LivePatchedProductSearchMock` or the fake mock.
+- **`LivePatchedProductSearchMock`** (fixture
+  `livePatchedProductSearchMock`) uses the docs' "modify API responses"
+  pattern: `route.fetch()` the real search, apply `register(transform)`,
+  then `route.fulfill({ response, json })`.
+  - The transform gets a clone, so it may change it in place.
+  - `realResponses[i]` and `servedResponses[i]` always belong to the same
+    request, because both are pushed only after `route.fulfill` succeeded.
+    So they list only responses the page actually got. `lastServed()`
+    returns the last served one.
+  - Only the fetch and the transform are inside the `try`, and the route
+    is completed exactly once. Errors go into `errors`:
+    - When the real search isn't OK or the transform throws, it serves
+      the real response unchanged.
+    - When `route.fetch()` itself fails (network), it aborts the request.
+    - A failing final `route.fulfill` (for example, the page closed)
+      isn't retried. Its error is the route handler's own.
+  - So the page never hangs on a pending request, and `lastServed()`
+    reports the errors.
+  - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
+    search was served and that `errors` is empty.
+- **API login (`loginViaApi`)**: tests never log in through the UI form,
+  except `tests/loginPage.spec.ts`, which tests the form itself.
+  The auto `loginViaApi` fixture signs in once per worker with
+  `POST /api/v1/users/signin` (`AuthApi.signIn`). The `storageState`
+  override starts every context with `token`/`refreshToken` in
+  localStorage, and `test.use({ skipAutoLogin: true })` keeps a test
+  logged out. The **api-login** skill (`.claude/skills/api-login/SKILL.md`)
+  covers how to add it to a test or a new role, the logout/`renew` rule,
+  and logging in through Playwright MCP.
+- **`FakeProductSearchMock`** (fixture `fakeProductSearchMock`): the
+  fixture creates it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
-  - Replace `productSearchMock.products` or change it in place, or use
+  - Replace `fakeProductSearchMock.products` or change it in place, or use
     `updateProduct(id, changes)`. That method uses `Object.assign`, so it
     doesn't re-derive dependent fields like the generator does.
   - Every request builds its response from the current `products` with
@@ -335,7 +500,7 @@ Imports between `src/` files are relative and extensionless.
   that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
   change the shared account's real cart. It records each request body in
   `addedItems` and answers with a cart priced from
-  `productSearchMock.products`. A test that clicks Add to Cart must take
+  `fakeProductSearchMock.products`. A test that clicks Add to Cart must take
   this fixture.
 - **`ProductSearchResponseBuilder`**:
   - `withProducts`/`withGeneratedProducts` take _all_ matching products.
@@ -351,13 +516,33 @@ Imports between `src/` files are relative and extensionless.
   Awesome Testing"). Tests log in for real with credentials from `.env`
   (`CLIENT_*` / `ADMIN_*`: username, password, display name). On CI they
   come from repository secrets and variables.
-- The admin account hasn't been mapped. Logging in with it via Playwright MCP
-  sent no sign-in request (cause unknown), so admin-only navigation links or
-  dashboard parts are missing from the page objects.
+- Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
+  admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
+  modelled in code yet: no `warehouse`/`admin` menu links in
+  `NavigationBar`, no admin page objects, no admin specs. The
+  **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
+  mapped test ids, the admin-only endpoints and the agreed rules for admin
+  tests (separate `tests/admin*.spec.ts`, live writes only on self-created
+  prefixed data with cleanup, MCP writes only with the user's OK).
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
   individually.
+- Tests in one worker share that worker's API session (same `token` and
+  `refreshToken`); workers have separate sessions. Whether the backend
+  rotates refresh tokens is unknown. If it does, a refresh in one test
+  could invalidate the next test's copy. It can't trigger today: a run
+  takes seconds, the cache renews 120 s before the JWT expires, and no
+  test logs out. Logging out is covered by the `renew` rule in the
+  api-login skill. If
+  rotation ever bites, the fix is one session per test.
+- A rare uncaptured flake: twice, one full parallel run had one failing
+  test (once with the UI-login setup, once right after the switch to API
+  login). Neither error was saved. Each time the following runs all passed,
+  including 28/28 with `--repeat-each=4`. Locally `retries` is 0 and the
+  trace is `on-first-retry`, so a one-off failure leaves no trace. To
+  catch it, run with `--retries=1` (records a trace) or
+  `--reporter=line` and keep the output.
 
 ## Commit messages: Conventional Commits
 

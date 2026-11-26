@@ -8,6 +8,7 @@ import { BasePage } from './basePage';
 
 export class ProductsPage extends BasePage {
   readonly url = '/products';
+  readonly title = 'Products – Awesome Testing';
 
   readonly root: Locator;
   readonly productList: Locator;
@@ -106,6 +107,14 @@ export class ProductsPage extends BasePage {
     await expect(this.texts.loading).toBeHidden();
     await expect(this.texts.paginationStatus).toBeHidden();
     await expect(this.buttons.resetSearch).toBeHidden();
+  }
+
+  async expectMatchCount(totalElements: number): Promise<void> {
+    await expect(this.texts.countSummary).toContainText(String(totalElements));
+  }
+
+  async expectInStockCount(count: number): Promise<void> {
+    await expect(this.texts.inStockCount).toHaveText(String(count));
   }
 
   async expectToShowProducts(products: Product[]): Promise<void> {
