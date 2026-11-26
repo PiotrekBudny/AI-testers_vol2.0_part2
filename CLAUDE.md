@@ -51,7 +51,8 @@ src/
   fixtures/test.ts                          test/expect with page object + mock fixtures
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
-  mocks/apiRoutes.ts                        route globs shared by mocks and tests
+  mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
+  mocks/apiRoutes.ts                        route globs shared by mocks and tests, ApiEndpoint
   mocks/cartItemsMock.ts                    fake POST /api/v1/cart/items
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
@@ -64,13 +65,24 @@ tests/                                      Playwright specs (testDir)
   loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
+  productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
 ```
 
-Imports between `src/` files are relative and extensionless.
+Imports are extensionless. Anything in `src/` is imported through the `@/`
+alias (`@/*` → `./src/*` in `tsconfig.json` `paths`), for example
+`import { test } from '@/fixtures/test'` in specs and
+`import type { Product } from '@/models/product'` in `src/`. Only imports
+from the same folder stay relative (`./basePage`, `./apiRoutes`).
+
+- There's one alias, `@/`, on purpose: per-folder names like `@types/*`
+  would clash with npm scopes (`@types/node`).
+- TypeScript 7 has no `baseUrl`, so `paths` resolve relative to
+  `tsconfig.json`. Playwright 1.65 reads the same `paths` (verified), so
+  there's no extra loader or bundler config.
 
 ## Rule: no comments in code
 
@@ -159,6 +171,8 @@ Imports between `src/` files are relative and extensionless.
   real traffic locally into recordings for HAR replay tests (see
   `HarReplayMock` below). **admin-login** covers acting as `ROLE_ADMIN` in
   tests and in Playwright MCP, including the live-write rules.
+  **mock-api-errors** covers negative scenarios with `ApiErrorMock`
+  (4xx/5xx, the 401 refresh rule, exploring errors through MCP).
 
 ## Playwright config
 
@@ -406,9 +420,18 @@ Imports between `src/` files are relative and extensionless.
   - Intercepting every non-GET request (`page.route('**/*')`) stopped Add to
     Cart from sending anything. Mock only the exact endpoint
     (`CartItemsMock` routes `**/api/v1/cart/items`).
-  - When the search request returns `500`, the list stays on
-    `product-list-loading` ("Loading products...") for at least 2 s,
-    probably while the app retries. No error state has been seen.
+  - A search `404` shows the error state at once, after one request. A
+    `500` is retried with backoff (4 requests at about 0/1/3/7 s, showing
+    `product-list-loading` "Loading products..." meanwhile). The error
+    state is `error-message` (`role="alert"`, "Error loading products")
+    plus `product-list-retry` ("Retry"); the count summary stays
+    "Searching the catalogue". Retry sends a new search.
+    `ProductsPage.expectLoadError()` (waits up to 15 s),
+    `expectStillLoading()` and `retryLoading()` cover it.
+  - A `401` from `GET /api/v1/users/me` makes the app call
+    `POST /api/v1/users/refresh`. When that fails too, it clears `token`
+    and `refreshToken` and lands on `/login` (no `returnTo`, no toast, no
+    logout request).
   - The "WebMCP · Agent interface" panel (`shop-tool-*`) on the page isn't
     modelled.
   - `ProductSearchResponseBuilder` output renders correctly on this page
@@ -423,7 +446,9 @@ Imports between `src/` files are relative and extensionless.
     derived _after_ overrides are applied:
     - `reviewCount: 0` gives a null rating, and `averageRating: null` gives
       0 reviews.
-    - `updatedAt` is never earlier than `createdAt`.
+    - `updatedAt` is never earlier than `createdAt`. When it would be,
+      it reuses the `createdAt` string verbatim, so the microsecond
+      digits aren't truncated by a `Date` round trip.
     - The rating is the average of generated 1-5 star reviews.
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
@@ -533,6 +558,20 @@ Imports between `src/` files are relative and extensionless.
   `addedItems` and answers with a cart priced from
   `fakeProductSearchMock.products`. A test that clicks Add to Cart must take
   this fixture.
+- **`ApiErrorMock`** (fixture `apiErrorMock`, not `auto`): makes any
+  `apiRoutes` endpoint answer with an error status
+  (`respondWithError(endpoint, status, { times?, message? })`), with a
+  backend-like body `{status, error, message, path, timestamp}`.
+  `rejectSession()` makes `users/me`, `users/refresh` and `users/logout`
+  return 401, so none of them reaches the server.
+  `expectRequestCount(endpoint, n)` polls how many errors it served,
+  `expectRequestCountToStay(endpoint, n, ms)` also checks that no more
+  arrive within `ms` (no retries), and `waitForRequestCount(endpoint, n)`
+  waits until at least `n` were served (for example, the first retry). A
+  test that mocks a 401 must also mock `tokenRefresh`, so the shared
+  refresh token never reaches the real refresh endpoint. Procedure,
+  behaviour and MCP exploration steps live in the **mock-api-errors**
+  skill.
 - **`ProductSearchResponseBuilder`**:
   - `withProducts`/`withGeneratedProducts` take _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).

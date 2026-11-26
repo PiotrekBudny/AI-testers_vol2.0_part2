@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import type { Locators } from '../types/locators';
+import type { Locators } from '@/types/locators';
 
 export class Footer {
   readonly root: Locator;

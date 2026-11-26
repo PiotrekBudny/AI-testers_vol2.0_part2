@@ -1,6 +1,6 @@
 import { expect, type Locator } from '@playwright/test';
-import type { Product } from '../models/product';
-import type { Locators } from '../types/locators';
+import type { Product } from '@/models/product';
+import type { Locators } from '@/types/locators';
 
 const usdPrice = new Intl.NumberFormat('en-US', {
   style: 'currency',

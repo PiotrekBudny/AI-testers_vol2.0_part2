@@ -1,6 +1,5 @@
-import type { ProductCategory } from '../enums/productCategory';
+import type { ProductCategory } from '@/enums/productCategory';
 
-/** Single product as returned in `content` of GET /api/v1/products/search. */
 export interface Product {
   id: number;
   name: string;

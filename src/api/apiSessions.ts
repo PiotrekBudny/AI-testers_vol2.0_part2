@@ -1,6 +1,6 @@
 import type { BrowserContextOptions } from '@playwright/test';
-import { getUser, type UserRole } from '../config/users';
-import type { ApiSession } from '../models/auth';
+import { getUser, type UserRole } from '@/config/users';
+import type { ApiSession } from '@/models/auth';
 import type { AuthApi } from './authApi';
 
 type StorageState = Exclude<BrowserContextOptions['storageState'], string>;

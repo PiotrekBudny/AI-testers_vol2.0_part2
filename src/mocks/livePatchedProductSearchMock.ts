@@ -4,7 +4,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
-import type { ProductSearchResponse } from '../models/productSearchResponse';
+import type { ProductSearchResponse } from '@/models/productSearchResponse';
 import { apiRoutes } from './apiRoutes';
 
 export type ProductSearchTransform = (

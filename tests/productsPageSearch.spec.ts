@@ -1,4 +1,4 @@
-import { test } from '../src/fixtures/test';
+import { test } from '@/fixtures/test';
 
 test('client finds a product by its name', async ({
   productsPage,

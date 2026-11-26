@@ -1,6 +1,6 @@
 ---
 name: har-to-mock
-description: "Capture real API traffic into a git-ignored HAR and turn it into a committable, sanitized JSON recording (src/mocks/recorded/<name>.json) that HAR replay tests serve. Use it when: (1) refreshing a recording because the live data or API response changed, or a HAR replay test fails with 'The recording has no entry for it'; (2) adding a new recorded endpoint or page for a HAR replay test; (3) the user asks to capture, record or refresh a HAR or a mock from the real app; (4) a test fails with 'No recording at src/mocks/recorded/...'. Not for generated fake data (FakeProductSearchMock) or for patching live responses (LivePatchedProductSearchMock)."
+description: "Capture real API traffic into a git-ignored HAR and turn it into a committable, sanitized JSON recording (src/mocks/recorded/<name>.json) that HAR replay tests serve. Use it when: (1) refreshing a recording because the live data or API response changed, or a HAR replay test fails with 'The recording has no entry for it'; (2) adding a new recorded endpoint or page for a HAR replay test; (3) the user asks to capture, record or refresh a HAR or a mock from the real app; (4) a test fails with 'No recording at src/mocks/recorded/...'. Not for generated fake data (FakeProductSearchMock), for patching live responses (LivePatchedProductSearchMock) or for error responses (mock-api-errors skill)."
 ---
 
 # HAR to mock

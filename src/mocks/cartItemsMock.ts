@@ -1,6 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import type { Cart, CartItem } from '../models/cart';
-import type { Product } from '../models/product';
+import type { Cart, CartItem } from '@/models/cart';
+import type { Product } from '@/models/product';
 import { apiRoutes } from './apiRoutes';
 
 export class CartItemsMock {

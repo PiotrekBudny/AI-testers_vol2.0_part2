@@ -1,10 +1,12 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { ProductCard } from '../components/productCard';
-import type { ProductCategory } from '../enums/productCategory';
-import type { ProductSortOption } from '../enums/productSortOption';
-import type { Product } from '../models/product';
-import type { Locators } from '../types/locators';
+import { ProductCard } from '@/components/productCard';
+import type { ProductCategory } from '@/enums/productCategory';
+import type { ProductSortOption } from '@/enums/productSortOption';
+import type { Product } from '@/models/product';
+import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
+
+const SEARCH_RETRY_WINDOW_MS = 15_000;
 
 export class ProductsPage extends BasePage {
   readonly url = '/products';
@@ -23,6 +25,7 @@ export class ProductsPage extends BasePage {
     | 'loading'
     | 'noProducts'
     | 'noCategories'
+    | 'loadError'
   >;
   readonly inputs: Locators<'search' | 'minPrice' | 'maxPrice' | 'inStockOnly'>;
   readonly selects: Locators<'sort' | 'minRating'>;
@@ -34,6 +37,7 @@ export class ProductsPage extends BasePage {
     | 'resetSearch'
     | 'previousPage'
     | 'nextPage'
+    | 'retry'
   >;
 
   constructor(page: Page) {
@@ -57,6 +61,7 @@ export class ProductsPage extends BasePage {
       loading: page.getByTestId('product-list-loading'),
       noProducts: page.getByTestId('no-products-message'),
       noCategories: page.getByTestId('products-categories-empty'),
+      loadError: page.getByTestId('error-message'),
     };
 
     this.inputs = {
@@ -79,6 +84,7 @@ export class ProductsPage extends BasePage {
       resetSearch: page.getByTestId('reset-search-button'),
       previousPage: page.getByTestId('product-pagination-prev'),
       nextPage: page.getByTestId('product-pagination-next'),
+      retry: page.getByTestId('product-list-retry'),
     };
   }
 
@@ -109,6 +115,23 @@ export class ProductsPage extends BasePage {
     );
     await expect(this.buttons.resetSearch).toHaveText('Clear filters');
     await this.expectEmptyResults();
+  }
+
+  async expectStillLoading(): Promise<void> {
+    await expect(this.texts.loading).toHaveText('Loading products...');
+    await expect(this.texts.loadError).toBeHidden();
+  }
+
+  async expectLoadError(): Promise<void> {
+    await expect(this.texts.loadError).toHaveText('Error loading products', {
+      timeout: SEARCH_RETRY_WINDOW_MS,
+    });
+    await expect(this.texts.loadError).toHaveAttribute('role', 'alert');
+    await expect(this.buttons.retry).toBeEnabled();
+    await expect(this.texts.countSummary).toHaveText('Searching the catalogue');
+    await expect(this.texts.loading).toBeHidden();
+    await expect(this.productList).toBeHidden();
+    await expect(this.texts.paginationStatus).toBeHidden();
   }
 
   async expectSearchFor(query: string): Promise<void> {
@@ -154,6 +177,10 @@ export class ProductsPage extends BasePage {
 
   async search(query: string): Promise<void> {
     await this.inputs.search.fill(query);
+  }
+
+  async retryLoading(): Promise<void> {
+    await this.buttons.retry.click();
   }
 
   async clearSearch(): Promise<void> {

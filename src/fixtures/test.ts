@@ -1,22 +1,23 @@
 import { existsSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
-import { ApiSessions, storageStateFor } from '../api/apiSessions';
-import { AuthApi } from '../api/authApi';
-import { ProductSearchTraffic } from '../assertions/productSearchTraffic';
-import { SignInTraffic } from '../assertions/signInTraffic';
-import type { UserRole } from '../config/users';
-import { ProductGenerator } from '../generators/productGenerator';
-import { readHar, sanitizeHar, writeHar } from '../har/harFile';
-import { CartItemsMock } from '../mocks/cartItemsMock';
-import { FakeProductSearchMock } from '../mocks/fakeProductSearchMock';
-import { HarReplayMock } from '../mocks/harReplayMock';
-import { LivePatchedProductSearchMock } from '../mocks/livePatchedProductSearchMock';
-import type { ApiSession } from '../models/auth';
-import { DashboardPage } from '../pages/dashboardPage';
-import { ForgotPasswordPage } from '../pages/forgotPasswordPage';
-import { LoginPage } from '../pages/loginPage';
-import { ProductsPage } from '../pages/productsPage';
-import { RegisterPage } from '../pages/registerPage';
+import { ApiSessions, storageStateFor } from '@/api/apiSessions';
+import { AuthApi } from '@/api/authApi';
+import { ProductSearchTraffic } from '@/assertions/productSearchTraffic';
+import { SignInTraffic } from '@/assertions/signInTraffic';
+import type { UserRole } from '@/config/users';
+import { ProductGenerator } from '@/generators/productGenerator';
+import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
+import { ApiErrorMock } from '@/mocks/apiErrorMock';
+import { CartItemsMock } from '@/mocks/cartItemsMock';
+import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
+import { HarReplayMock } from '@/mocks/harReplayMock';
+import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
+import type { ApiSession } from '@/models/auth';
+import { DashboardPage } from '@/pages/dashboardPage';
+import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
+import { LoginPage } from '@/pages/loginPage';
+import { ProductsPage } from '@/pages/productsPage';
+import { RegisterPage } from '@/pages/registerPage';
 
 export type Options = {
   userRole: UserRole;
@@ -36,6 +37,7 @@ type Fixtures = {
   productSearchTraffic: ProductSearchTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
   cartItemsMock: CartItemsMock;
+  apiErrorMock: ApiErrorMock;
   harReplayMock: HarReplayMock;
   livePatchedProductSearchMock: LivePatchedProductSearchMock;
   loginViaApi: ApiSession | null;
@@ -148,6 +150,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     );
     await mock.register();
     await use(mock);
+  },
+  apiErrorMock: async ({ page }, use) => {
+    await use(new ApiErrorMock(page));
   },
   harReplayMock: async ({ page, baseURL, userRole }, use, testInfo) => {
     await use(

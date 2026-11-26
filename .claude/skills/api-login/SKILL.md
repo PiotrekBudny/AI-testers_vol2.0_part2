@@ -1,6 +1,6 @@
 ---
 name: api-login
-description: "How this project authenticates: via the API (AuthApi.signIn + storageStateFor + the loginViaApi auto fixture), never through the UI login form. Use it when: (1) writing or changing a Playwright test that needs a logged-in user or must stay logged out; (2) adding a new user role or account (new *_USERNAME/*_PASSWORD variables, a new UserRole value); (3) touching src/api/authApi.ts, src/api/apiSessions.ts, src/config/users.ts or the loginViaApi/apiSessions/storageState fixtures in src/fixtures/test.ts; (4) a test logs out or invalidates its token; (5) driving the app through Playwright MCP (a real browser) on any page behind login, for example to verify or explore something. Not for tests of the login form itself, beyond turning auto-login off with skipAutoLogin."
+description: "How this project authenticates: via the API (AuthApi.signIn + storageStateFor + the loginViaApi auto fixture), never through the UI login form. Use it when: (1) writing or changing a Playwright test that needs a logged-in user or must stay logged out; (2) adding a new user role or account (new *_USERNAME/*_PASSWORD variables, a new UserRole value); (3) touching src/api/authApi.ts, src/api/apiSessions.ts, src/config/users.ts or the loginViaApi/apiSessions/storageState fixtures in src/fixtures/test.ts; (4) a test logs out, invalidates its token or mocks a 401 (expired session); (5) driving the app through Playwright MCP (a real browser) on any page behind login, for example to verify or explore something. Not for tests of the login form itself, beyond turning auto-login off with skipAutoLogin."
 ---
 
 # API login
@@ -34,7 +34,7 @@ Nothing to set up: `loginViaApi` is `auto`. Import `test`/`expect` from the
 fixtures and open the page directly.
 
 ```ts
-import { expect, test } from '../src/fixtures/test';
+import { expect, test } from '@/fixtures/test';
 
 test('client sees the products page', async ({ productsPage }) => {
   await productsPage.goto();
@@ -76,6 +76,12 @@ Tests in one worker share one cached session. Such a test takes the
 `apiSessions`, `userRole` and `baseURL` fixtures. As its last step it calls
 `await apiSessions.renew(userRole, baseURL)`, or the next test in that worker
 gets a dead token.
+
+A test that **mocks a 401** (an expired session) doesn't need `renew`, as
+long as the app's refresh never reaches the server. On a 401 the app calls
+`POST /api/v1/users/refresh` with the shared refresh token, so mock that too:
+`apiErrorMock.rejectSession()` or `respondWithError('tokenRefresh', 401)`.
+See the **mock-api-errors** skill.
 
 `baseURL` is typed `string | undefined` but is always set by
 `playwright.config.ts`. Narrow it with a check that throws, the way

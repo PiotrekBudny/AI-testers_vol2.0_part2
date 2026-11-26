@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
-import type { Options } from './src/fixtures/test';
+import type { Options } from '@/fixtures/test';
 
 dotenv.config({ quiet: true });
 
@@ -11,7 +11,6 @@ export default defineConfig<Options>({
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
-  // Never open the report server locally: it would block the pre-commit hook.
   reporter: isCI
     ? [['html'], ['json', { outputFile: 'test-results/results.json' }]]
     : [['list'], ['html', { open: 'never' }]],

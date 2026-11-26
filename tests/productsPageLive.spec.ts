@@ -1,4 +1,4 @@
-import { test } from '../src/fixtures/test';
+import { test } from '@/fixtures/test';
 
 test('client sees the products the real search API returns', async ({
   productsPage,

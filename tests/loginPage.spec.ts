@@ -1,6 +1,6 @@
 import { faker } from '@faker-js/faker';
-import { getUser } from '../src/config/users';
-import { test } from '../src/fixtures/test';
+import { getUser } from '@/config/users';
+import { test } from '@/fixtures/test';
 
 test.use({ skipAutoLogin: true });
 

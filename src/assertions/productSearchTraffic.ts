@@ -1,5 +1,5 @@
 import { expect, type Page, type Response } from '@playwright/test';
-import type { ProductSearchResponse } from '../models/productSearchResponse';
+import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
 const productSearchPath = '/api/v1/products/search';
 

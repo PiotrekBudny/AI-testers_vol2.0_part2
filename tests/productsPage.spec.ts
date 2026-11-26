@@ -1,5 +1,5 @@
-import { test } from '../src/fixtures/test';
-import { ProductGenerator } from '../src/generators/productGenerator';
+import { test } from '@/fixtures/test';
+import { ProductGenerator } from '@/generators/productGenerator';
 
 test('client sees all mocked products on products page', async ({
   productsPage,

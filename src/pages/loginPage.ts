@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { User } from '../config/users';
-import type { Locators } from '../types/locators';
+import type { User } from '@/config/users';
+import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
 export type LoginField = 'username' | 'password';

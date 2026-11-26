@@ -1,7 +1,7 @@
 import { expect, type Page } from '@playwright/test';
-import { Footer } from '../components/footer';
-import { NavigationBar } from '../components/navigationBar';
-import { Toast } from '../components/toast';
+import { Footer } from '@/components/footer';
+import { NavigationBar } from '@/components/navigationBar';
+import { Toast } from '@/components/toast';
 
 export abstract class BasePage {
   abstract readonly url: string;

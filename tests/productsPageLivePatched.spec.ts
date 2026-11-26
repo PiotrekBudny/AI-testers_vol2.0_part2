@@ -1,4 +1,4 @@
-import { test } from '../src/fixtures/test';
+import { test } from '@/fixtures/test';
 
 test('client sees real products with the first one patched to sold out', async ({
   productsPage,
