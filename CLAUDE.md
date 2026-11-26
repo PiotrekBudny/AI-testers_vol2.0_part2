@@ -12,7 +12,9 @@ the answer into the relevant section.
 
 Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
-(`page.route`). Current scope: the **product list** only.
+(`page.route`), plus a few tests against the live API. Current scope:
+the login form, the product list (search, errors, network errors), the
+product details page and the cart.
 
 - API docs (Swagger UI): <https://awesome.byst.re/swagger-ui/index.html>;
   raw spec at `https://awesome.byst.re/v3/api-docs` (fetch with `curl`).
@@ -27,15 +29,14 @@ Playwright + TypeScript end-to-end tests for the shop at
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
-  components/footer.ts                      Footer (shared on every view)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
   api/apiSessions.ts                        per-worker session cache, storageStateFor
+  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
-  enums/productSortOption.ts                sort <select> option values in the UI
   generators/productGenerator.ts            faker-based Product generator
   formatters/price.ts                       formatUsd: en-US USD price text as the app shows it
   models/product.ts                         Product (one search hit), ProductDetails
@@ -50,13 +51,14 @@ src/
   pages/productDetailsPage.ts               ProductDetailsPage (/products/{id}, open(product))
   pages/productsPage.ts                     ProductsPage (/products)
   pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  assertions/settle.ts                      expectToStay: poll, wait a window, check again
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
   assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
   fixtures/test.ts                          test/expect with page object + mock fixtures
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
-  mocks/apiRoutes.ts                        route globs shared by mocks and tests, ApiEndpoint
+  mocks/apiRoutes.ts                        apiPaths (endpoint paths), route globs, ApiEndpoint
   mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
@@ -203,8 +205,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
-- On CI: `retries: 2`, `forbidOnly`, and the `html` and `json`
-  reporters. `json` writes `test-results/results.json`, which feeds the CI
+- On CI: `retries: 2`, `forbidOnly`, and the `list`, `html` and `json`
+  reporters (`list` prints each test in the job log). `json` writes `test-results/results.json`, which feeds the CI
   results annotation. Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
@@ -268,9 +270,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `readonly url = '/login'`, `readonly title = 'Sign in – Awesome Testing'`.
   Paths are relative to `baseURL`, so `BASE_URL` still picks the
   environment. Don't override `goto()` per page.
-- Parts shared across views (navigation, footer, toasts) live in
+- Parts shared across views (navigation, toasts) live in
   `src/components/`, each scoped to its root test id. `BasePage` creates
-  them, so every page has `.navigation`, `.footer` and `.toast`.
+  them, so every page has `.navigation` and `.toast`.
 - Tests get page objects through Playwright fixtures: import `test` and
   `expect` from `src/fixtures/test.ts`, not from `@playwright/test`, and
   take `loginPage`, `dashboardPage`, `productsPage` as test arguments. Every
@@ -292,7 +294,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - **Real network traffic** with no mock: an assertion class in
     `src/assertions/`. It starts listening in its constructor, so its
     fixture must be requested before the action. `SignInTraffic`
-    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent`) and
+    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent(ms)`,
+    which waits the window before checking) and
     `ProductSearchTraffic` (`expectOkWithProducts()` returns the body,
     `expectAnInStockProduct()` returns a real product with stock).
 - Name methods `expect` + what is true afterwards, written from the
@@ -301,6 +304,15 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `expectToBeOpen()` and `navigation.expectLoggedOut()`.
 - Waiting is not asserting: use `locator.waitFor()` when a test only needs
   the page to be ready.
+- "Nothing more was sent" needs a window: `expectToStay(page, read,
+  expected, ms, message)` (`src/assertions/settle.ts`) polls until the
+  value matches, waits `ms`, and checks again. Every `…ToStay` method and
+  `SignInTraffic.expectNoneSent` use it, and specs pass
+  `NO_MORE_REQUESTS_WINDOW_MS` (`src/config/timing.ts`, 1.5 s).
+- No `if`/`throw` in specs: get typed products from
+  `ProductGenerator.generateCatalogue(count, overrides)` (`{ products,
+  first, second }`), and keep transforms in the mock
+  (`livePatchedProductSearchMock.patchFirstProduct(changes)`).
 
 ### Rule: prefer `data-testid` locators
 
@@ -319,11 +331,12 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - When a page object has more than one locator of the same kind, put them
   in a named group instead of separate fields: `buttons`, `links`,
   `inputs`, `selects`, `errors`, `headings`, `texts`, or a more specific
-  name when it reads better (`menuLinks`, `features`). Keys are short
+  name when it reads better (`menuLinks`). Keys are short
   camelCase names without the kind suffix: `buttons.signIn`, not
   `signInButton`.
 - A single locator of its kind stays a plain field (`form`, `root`,
-  `userEmail`, `closeButton`).
+  `heading`, `searchInput`, `welcomeHeading`). When removing locators
+  leaves a group with one key, turn it into a plain field.
 - Type groups with `Locators<'a' | 'b'>` from `src/types/locators.ts` and
   assign them in the constructor. Field initializers can't use `this.page`
   (TS2729, because of parameter properties), and the declared keys make
@@ -363,9 +376,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   display name is the navigation's `username-profile-link`. The heading
   shows only the first name (`Welcome, Alice!`).
 - Navigation: `links.login`/`links.register` show only when logged out.
-  `links.cart`, `links.profile` (leads to `/profile`), `menuLinks`,
-  `selects` and `buttons` show only when logged in. It's mapped for the
-  desktop layout as a client; admins may see more links.
+  `links.cart` and `links.profile` (leads to `/profile`) show only when
+  logged in, as do the desktop menu links, selects and logout button
+  (not modelled; no test uses them). Mapped for the desktop layout as a
+  client; admins may see more links.
 - Products page (`/products`, "Products – Awesome Testing"), modelled as
   `ProductsPage`:
   - Every product card repeats the same test ids (`product-item`,
@@ -374,11 +388,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `productsPage.productAt(index)`.
   - Category test ids use a slug of the name: lowercase, spaces become `-`,
     `&` is kept (`products-category-home-&-kitchen`,
-    `products-category-count-home-&-kitchen`). Use `categoryCheckbox(cat)` /
-    `categoryCount(cat)` with the `ProductCategory` enum.
+    `products-category-count-home-&-kitchen`). Not modelled yet; build the
+    id from the `ProductCategory` enum when a test needs it.
   - The sort `<select>` uses hyphens (`price-asc`), while the API's `sort`
-    parameter uses underscores (`price_asc`). `ProductSortOption` holds the
-    UI values.
+    parameter uses underscores (`price_asc`). Sorting and the price/rating
+    filters aren't modelled yet (no test uses them).
   - The URL's `?page=` is 1-based (`?page=2` is the second page), while the
     API's `page` is 0-based. Pagination (`product-pagination-prev/-status/-next`,
     status `Page 2 of 3`) only renders when there is more than one page.
@@ -573,9 +587,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     - `imageUrl` is picked from the known server images.
   - `generateProducts(count, overrides)` gives ids `count..1`, sorted
     newest-first by `createdAt`; `id` cannot be overridden.
+  - `generateCatalogue(count, overrides)` returns the same list plus a
+    typed `first` and `second` (count must be at least 2).
 - Login is real but goes through the API, once per worker (see API login
   below). The mocks cover only the endpoints a test asks for.
-- Three kinds of product search mock. The class name starts with the
+- Four kinds of mock for products (search and details). The class name starts with the
   kind, and each fixture and file is the class name in camelCase
   (`FakeProductSearchMock` → `fakeProductSearchMock`):
 
@@ -589,7 +605,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `HarReplayMock` isn't tied to product search: `serve(name)` replays any
   recording.
   Route globs live in `apiRoutes` (`src/mocks/apiRoutes.ts`), not on a
-  mock class, so the mocks don't depend on each other.
+  mock class, so the mocks don't depend on each other. Endpoint paths
+  live once in `apiPaths` in the same file. `AuthApi`, `SignInTraffic`
+  and `ProductSearchTraffic` use them, and the string globs are built
+  from them. Only the skills' `.mjs` scripts repeat `/api/v1/users/signin`,
+  because plain Node can't import the TS module.
 - No mock is `auto`: a test that doesn't request one hits the real API.
   `tests/productsPageLive.spec.ts` does this on purpose. It waits for
   the real `GET /api/v1/products/search` response and checks the cards
@@ -639,7 +659,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   with its message. Then it waits `settleMs` and checks that there are
   still no errors and exactly `n` served. Two subclasses:
   - **`LivePatchedProductSearchMock`** (fixture
-    `livePatchedProductSearchMock`): `expectOnlyFirstProductPatched()`.
+    `livePatchedProductSearchMock`): `patchFirstProduct(changes)` and
+    `expectOnlyFirstProductPatched()`.
   - **`LivePatchedProductDetailsMock`** (fixture
     `livePatchedProductDetailsMock`): `patchStockQuantity(n)` and
     `expectOnlyStockQuantityPatched(n)`.
@@ -752,8 +773,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `abort(endpoint, { times?, errorCode? })` makes any `apiRoutes`
   endpoint fail with **no response** (`route.abort`, default `failed`;
   the tests use `internetdisconnected`).
-  - `abortedCount`, `waitForAbortedCount`, `expectAbortedCount` and
-    `expectAbortedCountToStay` count the aborted attempts.
+  - `abortedCount`, `waitForAbortedCount` and `expectAbortedCountToStay`
+    count the aborted attempts.
   - Never wait for a response of an aborted request:
     `page.waitForResponse` never resolves, and
     `HarReplayMock.waitForReplayedResponse` fails at once on the
@@ -763,7 +784,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `abort(endpoint, { times: N })`. Playwright tries the last-registered
     route first, and after N attempts the abort route is removed.
 - **`ProductSearchResponseBuilder`**:
-  - `withProducts`/`withGeneratedProducts` take _all_ matching products.
+  - `withProducts` takes _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
   - `build()` slices `content` and derives the totals and facets from all
     products. With no products set, it generates 8.

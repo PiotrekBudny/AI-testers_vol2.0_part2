@@ -11,9 +11,9 @@ and every other endpoint keeps working, mocked or live.
 
 | Piece | File | Role |
 | --- | --- | --- |
-| `apiRoutes`, `ApiEndpoint` | `src/mocks/apiRoutes.ts` | The only place with endpoint globs. `ApiEndpoint` is its key type (`productSearch`, `cartItems`, `currentUser`, `tokenRefresh`, `logout`). |
+| `apiRoutes`, `ApiEndpoint` | `src/mocks/apiRoutes.ts` | The only place with endpoint globs. `ApiEndpoint` is its key type (`productSearch`, `productDetails`, `productReviews`, `cart`, `cartItems`, `cartItem`, `currentUser`, `tokenRefresh`, `logout`). `apiPaths` in the same file holds the plain paths. |
 | `ApiErrorMock` | `src/mocks/apiErrorMock.ts` | `respondWithError(endpoint, status, { times?, message? })`, `rejectSession()`, `expectRequestCount(endpoint, n)`, `expectRequestCountToStay(endpoint, n, ms)`, `waitForRequestCount(endpoint, atLeast)`, `requestCount(endpoint)`. |
-| `NetworkErrorMock` | `src/mocks/networkErrorMock.ts` | `abort(endpoint, { times?, errorCode? })`, `abortedCount`, `waitForAbortedCount(endpoint, atLeast)`, `expectAbortedCount(endpoint, n)`, `expectAbortedCountToStay(endpoint, n, ms)`. |
+| `NetworkErrorMock` | `src/mocks/networkErrorMock.ts` | `abort(endpoint, { times?, errorCode? })`, `abortedCount`, `waitForAbortedCount(endpoint, atLeast)`, `expectAbortedCountToStay(endpoint, n, ms)`. |
 | `apiErrorMock`, `networkErrorMock` fixtures | `src/fixtures/test.ts` | Not `auto`. Request them only in tests that need an error. |
 | Error states in the UI | `src/pages/productsPage.ts` | `expectLoadError()`, `expectStillLoading()`, `retryLoading()`. |
 | Reference specs | `tests/productsPageApiErrors.spec.ts`, `tests/productsPageNetworkErrors.spec.ts`, `tests/productDetailsPage.spec.ts` | Search 404/500, Retry recovery, 401 on `/me`; dropped connection, recovery after 2 aborts; details 404, cart POST 500. |
@@ -34,7 +34,11 @@ test('client sees load error when product search returns 404', async ({
   await productsPage.goto();
 
   await productsPage.expectLoadError();
-  await apiErrorMock.expectRequestCount('productSearch', 1);
+  await apiErrorMock.expectRequestCountToStay(
+    'productSearch',
+    1,
+    NO_MORE_REQUESTS_WINDOW_MS,
+  );
 });
 ```
 
@@ -91,7 +95,7 @@ test('client sees load error when the connection drops', async ({
   await networkErrorMock.waitForAbortedCount('productSearch', 1);
   await productsPage.expectStillLoading();
   await productsPage.expectLoadError();
-  await networkErrorMock.expectAbortedCountToStay('productSearch', 4, 1_500);
+  await networkErrorMock.expectAbortedCountToStay('productSearch', 4, NO_MORE_REQUESTS_WINDOW_MS);
 });
 ```
 
@@ -109,7 +113,7 @@ await networkErrorMock.abort('productSearch', { times: 2 });
 await productsPage.goto();
 
 await productsPage.expectToShowProducts(recorded.content);
-await networkErrorMock.expectAbortedCountToStay('productSearch', 2, 1_500);
+await networkErrorMock.expectAbortedCountToStay('productSearch', 2, NO_MORE_REQUESTS_WINDOW_MS);
 ```
 
 The recording's URL matches every retry, because they all request

@@ -30,16 +30,17 @@ App facts:
 
 ## A new test that needs a logged-in user
 
-Nothing to set up: `loginViaApi` is `auto`. Import `test`/`expect` from the
-fixtures and open the page directly.
+Nothing to set up: `loginViaApi` is `auto`. Import `test` from the
+fixtures and open the page directly. Assert through page object `expect…`
+methods, never `expect()` in the spec (CLAUDE.md).
 
 ```ts
-import { expect, test } from '@/fixtures/test';
+import { test } from '@/fixtures/test';
 
 test('client sees the products page', async ({ productsPage }) => {
   await productsPage.goto();
 
-  await expect(productsPage.headings.page).toBeVisible();
+  await productsPage.expectToBeOpen();
 });
 ```
 
@@ -56,14 +57,12 @@ test.describe('login form', () => {
   test.use({ skipAutoLogin: true });
 
   test('visitor is sent to the login form', async ({
-    page,
     productsPage,
     loginPage,
   }) => {
     await productsPage.goto();
 
-    await expect(page).toHaveURL(/\/login/);
-    await expect(loginPage.form).toBeVisible();
+    await loginPage.expectToShowLoggedOutForm();
   });
 });
 ```

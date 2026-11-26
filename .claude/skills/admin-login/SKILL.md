@@ -40,14 +40,14 @@ there's no admin page object. Add them when a test first needs them (see below).
 - One file per area: **`tests/admin<Area>.spec.ts`**, for example `adminDashboard.spec.ts` or `adminProducts.spec.ts`. Set the role once at the top, and never mix client and admin tests in one file. The example assumes an `AdminDashboardPage` with its fixture, which doesn't exist yet (see Page objects below):
 
   ```ts
-  import { expect, test } from '@/fixtures/test';
+  import { test } from '@/fixtures/test';
 
   test.use({ userRole: 'admin' });
 
   test('admin sees the admin dashboard', async ({ adminDashboardPage }) => {
     await adminDashboardPage.goto();
 
-    await expect(adminDashboardPage.headings.title).toHaveText('Admin Dashboard');
+    await adminDashboardPage.expectToBeOpen();
   });
   ```
 
@@ -56,18 +56,22 @@ there's no admin page object. Add them when a test first needs them (see below).
 - **Page objects:** follow CLAUDE.md.
   - Add `src/pages/adminDashboardPage.ts` (`readonly url = '/admin'`, extends `BasePage`, `getByTestId` locators grouped as `headings`, `sectionLinks`, `metrics` and so on) and its fixture in `src/fixtures/test.ts`.
   - Admin sub-pages get their own classes (`AdminProductsPage`, `/admin/products`, …).
-  - Add `warehouse` and `admin` to `NavigationBar.menuLinks`. They're visible only for admins.
+  - Add a `menuLinks` group with `warehouse` and `admin` to `NavigationBar` (it has no menu links today, since no test used them). They're visible only for admins.
 - **Mocks:** reads on admin pages can use the fake or recorded mocks like any page. Record admin endpoints with the **har-to-mock** skill using `--role admin`, and replay them in an admin spec, since `serve()` checks the role.
 
 ## Calling admin endpoints from a test (setup and cleanup)
 
 Use Playwright's `request` fixture with the admin token from `loginViaApi`. Its
-`baseURL` matches the browser's:
+`baseURL` matches the browser's. Put the call in an API class in `src/api/`
+(like `AuthApi`) that throws on a non-2xx status, so the spec stays free of
+`expect()` and `if`:
 
 ```ts
-const headers = { authorization: `Bearer ${loginViaApi?.token}` };
-const response = await request.post('/api/v1/products', { headers, data: product });
-expect(response.ok()).toBe(true);
+const headers = { authorization: `Bearer ${session.token}` };
+const response = await this.request.post('/api/v1/products', { headers, data: product });
+if (!response.ok()) {
+  throw new Error(`POST /api/v1/products returned ${response.status()}`);
+}
 ```
 
 Check the success status and the request body in Swagger before asserting
