@@ -2,16 +2,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { expectToStay } from '@/assertions/settle';
 import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
-export type ApiErrorStatus =
-  | 400
-  | 401
-  | 403
-  | 404
-  | 409
-  | 422
-  | 500
-  | 502
-  | 503;
+type ApiErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502 | 503;
 
 const reasonPhrases: Record<ApiErrorStatus, string> = {
   400: 'Bad Request',
@@ -25,7 +16,7 @@ const reasonPhrases: Record<ApiErrorStatus, string> = {
   503: 'Service Unavailable',
 };
 
-export type ApiErrorOptions = {
+type ApiErrorOptions = {
   times?: number;
   message?: string;
 };

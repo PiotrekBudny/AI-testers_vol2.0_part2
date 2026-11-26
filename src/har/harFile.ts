@@ -1,12 +1,12 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export interface HarHeader {
+interface HarHeader {
   name: string;
   value: string;
 }
 
-export interface HarEntry {
+interface HarEntry {
   startedDateTime?: string;
   time?: number;
   request: {

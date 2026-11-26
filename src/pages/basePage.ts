@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { Footer } from '@/components/footer';
 import { NavigationBar } from '@/components/navigationBar';
 import { Toast } from '@/components/toast';
 
@@ -8,13 +7,11 @@ export abstract class BasePage {
   abstract readonly title: string;
 
   readonly navigation: NavigationBar;
-  readonly footer: Footer;
   readonly toast: Toast;
   readonly cartCounter: Locator;
 
   constructor(readonly page: Page) {
     this.navigation = new NavigationBar(page);
-    this.footer = new Footer(page);
     this.toast = new Toast(page);
     this.cartCounter = this.navigation.links.cart;
   }

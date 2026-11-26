@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Har } from './harFile';
 
-export interface RecordedEntry {
+interface RecordedEntry {
   method: string;
   url: string;
   status: number;

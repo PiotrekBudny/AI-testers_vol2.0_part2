@@ -7,7 +7,7 @@ import {
 import { expectToStay } from '@/assertions/settle';
 import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
-export type LiveTransform<T> = (realResponse: T) => T;
+type LiveTransform<T> = (realResponse: T) => T;
 
 const SETTLE_WINDOW_MS = 1_000;
 

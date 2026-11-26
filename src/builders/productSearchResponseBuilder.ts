@@ -19,14 +19,6 @@ export class ProductSearchResponseBuilder {
     return this;
   }
 
-  withGeneratedProducts(
-    count: number,
-    overrides: Omit<Partial<Product>, 'id'> = {},
-  ): this {
-    this.products = new ProductGenerator().generateProducts(count, overrides);
-    return this;
-  }
-
   withPageNumber(pageNumber: number): this {
     this.pageNumber = pageNumber;
     return this;

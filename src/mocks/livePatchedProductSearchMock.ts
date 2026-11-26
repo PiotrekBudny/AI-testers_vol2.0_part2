@@ -1,9 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 import type { Product } from '@/models/product';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
-import { LivePatchedMock, type LiveTransform } from './livePatchedMock';
-
-export type ProductSearchTransform = LiveTransform<ProductSearchResponse>;
+import { LivePatchedMock } from './livePatchedMock';
 
 export class LivePatchedProductSearchMock extends LivePatchedMock<ProductSearchResponse> {
   constructor(page: Page) {

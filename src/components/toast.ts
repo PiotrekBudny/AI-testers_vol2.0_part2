@@ -1,5 +1,4 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { Locators } from '@/types/locators';
 
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
@@ -7,16 +6,9 @@ function exactly(text: string): RegExp {
 
 export class Toast {
   readonly viewport: Locator;
-  readonly texts: Locators<'title' | 'description'>;
-  readonly closeButton: Locator;
 
   constructor(private readonly page: Page) {
     this.viewport = page.getByTestId('toast-viewport');
-    this.texts = {
-      title: this.viewport.getByTestId('toast-title'),
-      description: this.viewport.getByTestId('toast-description'),
-    };
-    this.closeButton = this.viewport.getByTestId('toast-close');
   }
 
   async expectToShow(title: string, description: string): Promise<void> {

@@ -4,7 +4,7 @@ import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
 const ATTEMPTS_TIMEOUT_MS = 10_000;
 
-export type NetworkErrorCode =
+type NetworkErrorCode =
   | 'failed'
   | 'aborted'
   | 'timedout'
@@ -14,7 +14,7 @@ export type NetworkErrorCode =
   | 'connectionclosed'
   | 'namenotresolved';
 
-export type NetworkErrorOptions = {
+type NetworkErrorOptions = {
   times?: number;
   errorCode?: NetworkErrorCode;
 };
@@ -52,18 +52,6 @@ export class NetworkErrorMock {
         timeout: ATTEMPTS_TIMEOUT_MS,
       })
       .toBeGreaterThanOrEqual(atLeast);
-  }
-
-  async expectAbortedCount(
-    endpoint: ApiEndpoint,
-    count: number,
-  ): Promise<void> {
-    await expect
-      .poll(() => this.abortedCount(endpoint), {
-        message: `aborted requests to ${endpoint}`,
-        timeout: ATTEMPTS_TIMEOUT_MS,
-      })
-      .toBe(count);
   }
 
   async expectAbortedCountToStay(
