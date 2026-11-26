@@ -1,10 +1,9 @@
+import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
 import { singleEntry } from '@/har/recording';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
 const SEARCH_ATTEMPTS = 4;
-const NO_MORE_ATTEMPTS_WINDOW_MS = 1_500;
-
 test('client sees load error when the connection drops', async ({
   productsPage,
   networkErrorMock,
@@ -21,7 +20,7 @@ test('client sees load error when the connection drops', async ({
   await networkErrorMock.expectAbortedCountToStay(
     'productSearch',
     SEARCH_ATTEMPTS,
-    NO_MORE_ATTEMPTS_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -44,6 +43,6 @@ test('client gets products after two dropped search attempts', async ({
   await networkErrorMock.expectAbortedCountToStay(
     'productSearch',
     2,
-    NO_MORE_ATTEMPTS_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });

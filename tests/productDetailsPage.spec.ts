@@ -1,6 +1,6 @@
+import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
 
-const NO_RETRY_WINDOW_MS = 1_500;
 const UNKNOWN_PRODUCT_ID = 98_765;
 
 test('client sees product details served by the mock', async ({
@@ -26,7 +26,7 @@ test('client sees not found page when product returns 404', async ({
   await apiErrorMock.expectRequestCountToStay(
     'productDetails',
     1,
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 
   await productDetailsPage.backToProducts();
@@ -54,7 +54,7 @@ test('client sees error toast when adding to cart fails with 500', async ({
   await apiErrorMock.expectRequestCountToStay(
     'cartItems',
     1,
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -72,7 +72,7 @@ test('out of stock product cannot be added to cart', async ({
   await productDetailsPage.forceAddToCart();
 
   await productDetailsPage.expectOutOfStock();
-  await cartMock.expectAddedItemsToStay([], NO_RETRY_WINDOW_MS);
+  await cartMock.expectAddedItemsToStay([], NO_MORE_REQUESTS_WINDOW_MS);
 });
 
 test('repeated clicks while adding to cart send one request', async ({
@@ -97,7 +97,7 @@ test('repeated clicks while adding to cart send one request', async ({
   await productDetailsPage.expectInCart(1);
   await cartMock.expectAddedItemsToStay(
     [{ productId: product.id, quantity: 1 }],
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -116,7 +116,7 @@ test('adding a product already in the cart sets its quantity with PUT', async ({
   await cartMock.expectUpdatedItems([{ productId: product.id, quantity: 1 }]);
   await cartMock.expectAddedItemsToStay(
     [{ productId: product.id, quantity: 1 }],
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
   await productDetailsPage.expectInCart(1);
 });

@@ -1,0 +1,1 @@
+export const NO_MORE_REQUESTS_WINDOW_MS = 1_500;

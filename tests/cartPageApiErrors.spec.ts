@@ -1,17 +1,12 @@
+import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
 import { ProductGenerator } from '@/generators/productGenerator';
 
-const NO_RETRY_WINDOW_MS = 1_500;
-
 function seededProduct() {
-  const products = new ProductGenerator().generateProducts(2, {
+  const { products, first } = new ProductGenerator().generateCatalogue(2, {
     stockQuantity: 10,
   });
-  const [product] = products;
-  if (!product) {
-    throw new Error('Expected a generated product');
-  }
-  return { products, product };
+  return { products, product: first };
 }
 
 test('a failed quantity update shows an error and keeps the saved quantity', async ({
@@ -38,7 +33,7 @@ test('a failed quantity update shows an error and keeps the saved quantity', asy
   await apiErrorMock.expectRequestCountToStay(
     'cartItem',
     1,
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -65,7 +60,7 @@ test('a failed remove shows an error and keeps the item', async ({
   await apiErrorMock.expectRequestCountToStay(
     'cartItem',
     1,
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });
 
@@ -94,6 +89,6 @@ test('a dropped connection during a quantity update keeps the saved quantity', a
   await networkErrorMock.expectAbortedCountToStay(
     'cartItem',
     1,
-    NO_RETRY_WINDOW_MS,
+    NO_MORE_REQUESTS_WINDOW_MS,
   );
 });

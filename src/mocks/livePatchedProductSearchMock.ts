@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import type { Product } from '@/models/product';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 import { LivePatchedMock, type LiveTransform } from './livePatchedMock';
 
@@ -7,6 +8,18 @@ export type ProductSearchTransform = LiveTransform<ProductSearchResponse>;
 export class LivePatchedProductSearchMock extends LivePatchedMock<ProductSearchResponse> {
   constructor(page: Page) {
     super(page, 'productSearch');
+  }
+
+  async patchFirstProduct(
+    changes: Omit<Partial<Product>, 'id'>,
+  ): Promise<void> {
+    await this.register((realResponse) => {
+      const [first, ...rest] = realResponse.content;
+      if (!first) {
+        throw new Error('The real search returned no products to patch');
+      }
+      return { ...realResponse, content: [{ ...first, ...changes }, ...rest] };
+    });
   }
 
   expectOnlyFirstProductPatched(): void {

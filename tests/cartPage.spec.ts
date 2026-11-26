@@ -2,14 +2,7 @@ import { test } from '@/fixtures/test';
 import { ProductGenerator } from '@/generators/productGenerator';
 
 function catalogue(stockQuantity: number) {
-  const products = new ProductGenerator().generateProducts(3, {
-    stockQuantity,
-  });
-  const [first, second] = products;
-  if (!first || !second) {
-    throw new Error('Expected generated products');
-  }
-  return { products, first, second };
+  return new ProductGenerator().generateCatalogue(3, { stockQuantity });
 }
 
 test('client adds a product, changes its quantity and removes it', async ({

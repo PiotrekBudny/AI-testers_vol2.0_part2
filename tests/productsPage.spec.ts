@@ -63,14 +63,10 @@ test('out of stock product cannot be added to cart while neighbours can', async 
   fakeProductSearchMock,
   cartMock,
 }) => {
-  fakeProductSearchMock.products = new ProductGenerator().generateProducts(3, {
-    stockQuantity: 25,
-  });
+  const { products, first: available } =
+    new ProductGenerator().generateCatalogue(3, { stockQuantity: 25 });
+  fakeProductSearchMock.products = products;
   fakeProductSearchMock.updateProduct(2, { stockQuantity: 0 });
-  const [available] = fakeProductSearchMock.products;
-  if (!available) {
-    throw new Error('Expected a generated product before the sold out one');
-  }
 
   await productsPage.goto();
 

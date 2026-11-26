@@ -1,6 +1,5 @@
+import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
-
-const NO_MORE_REQUESTS_WINDOW_MS = 1_500;
 
 test('client sees load error when product search returns 404', async ({
   productsPage,
