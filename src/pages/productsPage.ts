@@ -109,6 +109,14 @@ export class ProductsPage extends BasePage {
     await expect(this.buttons.resetSearch).toBeHidden();
   }
 
+  async expectMatchCount(totalElements: number): Promise<void> {
+    await expect(this.texts.countSummary).toContainText(String(totalElements));
+  }
+
+  async expectInStockCount(count: number): Promise<void> {
+    await expect(this.texts.inStockCount).toHaveText(String(count));
+  }
+
   async expectToShowProducts(products: Product[]): Promise<void> {
     await expect(this.productItems).toHaveCount(products.length);
     for (const [index, product] of products.entries()) {

@@ -1,4 +1,4 @@
-import { expect, test } from '../src/fixtures/test';
+import { test } from '../src/fixtures/test';
 import { ProductGenerator } from '../src/generators/productGenerator';
 
 test('client sees all mocked products on products page', async ({
@@ -75,16 +75,14 @@ test('out of stock product cannot be added to cart while neighbours can', async 
   await productsPage.goto();
 
   await productsPage.expectToShowProducts(fakeProductSearchMock.products);
-  await expect(productsPage.texts.inStockCount).toHaveText('2');
+  await productsPage.expectInStockCount(2);
 
   await productsPage.productAt(1).forceAddToCart();
   await productsPage.productAt(0).addToCart(2);
 
-  await expect(productsPage.toast.texts.title).toHaveText('Added to cart');
-  await expect(productsPage.toast.texts.description).toHaveText(
+  await productsPage.toast.expectToShow(
+    'Added to cart',
     `2 × ${available.name} added to your cart`,
   );
-  expect(cartItemsMock.addedItems).toEqual([
-    { productId: available.id, quantity: 2 },
-  ]);
+  cartItemsMock.expectAddedItems([{ productId: available.id, quantity: 2 }]);
 });

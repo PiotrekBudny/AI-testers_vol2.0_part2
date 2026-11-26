@@ -1,4 +1,4 @@
-import type { Page, Route } from '@playwright/test';
+import { expect, type Page, type Route } from '@playwright/test';
 import type { Cart, CartItem } from '../models/cart';
 import type { Product } from '../models/product';
 import { apiRoutes } from './apiRoutes';
@@ -14,6 +14,10 @@ export class CartItemsMock {
 
   async register(): Promise<void> {
     await this.page.route(apiRoutes.cartItems, (route) => this.fulfill(route));
+  }
+
+  expectAddedItems(items: CartItem[]): void {
+    expect(this.addedItems).toEqual(items);
   }
 
   private async fulfill(route: Route): Promise<void> {

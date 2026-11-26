@@ -1,4 +1,9 @@
-import type { APIResponse, Page, Route } from '@playwright/test';
+import {
+  type APIResponse,
+  expect,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import type { ProductSearchResponse } from '../models/productSearchResponse';
 import { apiRoutes } from './apiRoutes';
 
@@ -27,6 +32,18 @@ export class LivePatchedProductSearchMock {
       );
     }
     return served;
+  }
+
+  expectServedWithoutErrors(count: number): void {
+    expect(this.errors).toEqual([]);
+    expect(this.servedResponses).toHaveLength(count);
+  }
+
+  expectOnlyFirstProductPatched(): void {
+    const served = this.lastServed();
+    const real = this.realResponses.at(-1);
+    expect(served.content[0]).not.toEqual(real?.content[0]);
+    expect(served.content.slice(1)).toEqual(real?.content.slice(1));
   }
 
   private async fulfill(

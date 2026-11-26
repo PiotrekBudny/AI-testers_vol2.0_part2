@@ -47,6 +47,7 @@ src/
   pages/productsPage.ts                     ProductsPage (/products)
   pages/registerPage.ts                     RegisterPage (/register, url + title only)
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
+  assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
   fixtures/test.ts                          test/expect with page object + mock fixtures
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
@@ -225,6 +226,31 @@ Imports between `src/` files are relative and extensionless.
   `expect` from `src/fixtures/test.ts`, not from `@playwright/test`, and
   take `loginPage`, `dashboardPage`, `productsPage` as test arguments. Every
   new page object gets a fixture there.
+
+### Rule: no assertions in tests
+
+- Specs contain no `expect(...)` calls. A test arranges, acts and calls
+  named `expect…` methods, so it reads as the scenario.
+- Where an assertion goes:
+  - **UI state**: a method on the page object or component that owns
+    the elements (`loginPage.expectRequiredErrors(['password'])`,
+    `navigation.expectLoggedOut()`, `toast.expectToShow(title, text)`,
+    `productsPage.expectInStockCount(2)`).
+  - **What a mock received or served**: a method on that mock
+    (`cartItemsMock.expectAddedItems(...)`,
+    `livePatchedProductSearchMock.expectServedWithoutErrors(1)`,
+    `harReplayMock.expectMatchesRecording(...)`).
+  - **Real network traffic** with no mock: an assertion class in
+    `src/assertions/`. It starts listening in its constructor, so its
+    fixture must be requested before the action. `SignInTraffic`
+    (`expectAccepted` 200, `expectRejected` 422, `expectNoneSent`) and
+    `ProductSearchTraffic` (`expectOkWithProducts()` returns the body).
+- Name methods `expect` + what is true afterwards, written from the
+  user's view: `expectToWelcome(displayName)`, `expectToShowLoggedOutForm()`.
+- Compose instead of repeating: `expectToShowLoggedOutForm()` uses
+  `expectToBeOpen()` and `navigation.expectLoggedOut()`.
+- Waiting is not asserting: use `locator.waitFor()` when a test only needs
+  the page to be ready.
 
 ### Rule: prefer `data-testid` locators
 

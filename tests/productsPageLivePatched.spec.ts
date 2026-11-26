@@ -1,4 +1,4 @@
-import { expect, test } from '../src/fixtures/test';
+import { test } from '../src/fixtures/test';
 
 test('client sees real products with the first one patched to sold out', async ({
   productsPage,
@@ -18,13 +18,10 @@ test('client sees real products with the first one patched to sold out', async (
 
   await productsPage.goto();
 
-  await expect(productsPage.productItems.first()).toBeVisible();
-  expect(livePatchedProductSearchMock.errors).toEqual([]);
-  expect(livePatchedProductSearchMock.servedResponses).toHaveLength(1);
-  const [real] = livePatchedProductSearchMock.realResponses;
-  const served = livePatchedProductSearchMock.lastServed();
-  await productsPage.expectToShowProducts(served.content);
-  await expect(productsPage.productAt(0).texts.name).toHaveText(patchedName);
-  expect(real?.content[0]?.name).not.toBe(patchedName);
-  expect(served.content.slice(1)).toEqual(real?.content.slice(1));
+  await productsPage.productItems.first().waitFor();
+  livePatchedProductSearchMock.expectServedWithoutErrors(1);
+  livePatchedProductSearchMock.expectOnlyFirstProductPatched();
+  await productsPage.expectToShowProducts(
+    livePatchedProductSearchMock.lastServed().content,
+  );
 });

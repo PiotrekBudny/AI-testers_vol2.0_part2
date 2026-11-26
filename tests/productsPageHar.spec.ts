@@ -1,4 +1,4 @@
-import { expect, test } from '../src/fixtures/test';
+import { test } from '../src/fixtures/test';
 import { singleEntry } from '../src/har/recording';
 import type { ProductSearchResponse } from '../src/models/productSearchResponse';
 
@@ -19,7 +19,5 @@ test('client sees products replayed from the recorded search', async ({
   await harReplayMock.expectMatchesRecording(recording, response);
   const body = entry.body as ProductSearchResponse;
   await productsPage.expectToShowProducts(body.content);
-  await expect(productsPage.texts.countSummary).toContainText(
-    String(body.totalElements),
-  );
+  await productsPage.expectMatchCount(body.totalElements);
 });

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
 import { ApiSessions, storageStateFor } from '../api/apiSessions';
 import { AuthApi } from '../api/authApi';
+import { ProductSearchTraffic } from '../assertions/productSearchTraffic';
 import { SignInTraffic } from '../assertions/signInTraffic';
 import type { UserRole } from '../config/users';
 import { ProductGenerator } from '../generators/productGenerator';
@@ -32,6 +33,7 @@ type Fixtures = {
   forgotPasswordPage: ForgotPasswordPage;
   registerPage: RegisterPage;
   signInTraffic: SignInTraffic;
+  productSearchTraffic: ProductSearchTraffic;
   fakeProductSearchMock: FakeProductSearchMock;
   cartItemsMock: CartItemsMock;
   harReplayMock: HarReplayMock;
@@ -126,6 +128,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   },
   signInTraffic: async ({ page }, use) => {
     await use(new SignInTraffic(page));
+  },
+  productSearchTraffic: async ({ page }, use) => {
+    await use(new ProductSearchTraffic(page));
   },
   fakeProductSearchMock: async ({ page }, use) => {
     const mock = new FakeProductSearchMock(
