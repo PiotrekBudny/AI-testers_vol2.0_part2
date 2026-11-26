@@ -98,15 +98,31 @@ export class ProductsPage extends BasePage {
 
   async expectNoProducts(): Promise<void> {
     await expect(this.texts.noProducts).toHaveText('No products found');
-    await expect(this.texts.searchSummary).toHaveText('No matching products');
-    await expect(this.texts.countSummary).toHaveText('0 products match');
-    await expect(this.texts.noCategories).toHaveText('No categories match');
-    await expect(this.texts.inStockCount).toHaveText('0');
-    await expect(this.productList).toBeHidden();
-    await expect(this.productItems).toHaveCount(0);
-    await expect(this.texts.loading).toBeHidden();
-    await expect(this.texts.paginationStatus).toBeHidden();
+    await this.expectEmptyResults();
     await expect(this.buttons.resetSearch).toBeHidden();
+  }
+
+  async expectNoSearchResults(): Promise<void> {
+    await expect(this.texts.noProducts).toContainText('No products found');
+    await expect(this.texts.noProducts).toContainText(
+      'Try adjusting your search or',
+    );
+    await expect(this.buttons.resetSearch).toHaveText('Clear filters');
+    await this.expectEmptyResults();
+  }
+
+  async expectSearchFor(query: string): Promise<void> {
+    await expect(this.inputs.search).toHaveValue(query);
+    await expect(this.buttons.clearSearch).toBeVisible();
+    await expect(this.page).toHaveURL(
+      (url) => url.searchParams.get('q') === query,
+    );
+  }
+
+  async expectSearchCleared(): Promise<void> {
+    await expect(this.inputs.search).toHaveValue('');
+    await expect(this.buttons.clearSearch).toBeHidden();
+    await expect(this.page).toHaveURL((url) => !url.searchParams.has('q'));
   }
 
   async expectMatchCount(totalElements: number): Promise<void> {
@@ -140,6 +156,10 @@ export class ProductsPage extends BasePage {
     await this.inputs.search.fill(query);
   }
 
+  async clearSearch(): Promise<void> {
+    await this.buttons.clearSearch.click();
+  }
+
   async sortBy(option: ProductSortOption): Promise<void> {
     await this.selects.sort.selectOption(option);
   }
@@ -154,6 +174,17 @@ export class ProductsPage extends BasePage {
     await this.selects.minRating.selectOption(
       rating === null ? '' : String(rating),
     );
+  }
+
+  private async expectEmptyResults(): Promise<void> {
+    await expect(this.texts.searchSummary).toHaveText('No matching products');
+    await expect(this.texts.countSummary).toHaveText('0 products match');
+    await expect(this.texts.noCategories).toHaveText('No categories match');
+    await expect(this.texts.inStockCount).toHaveText('0');
+    await expect(this.productList).toBeHidden();
+    await expect(this.productItems).toHaveCount(0);
+    await expect(this.texts.loading).toBeHidden();
+    await expect(this.texts.paginationStatus).toBeHidden();
   }
 
   private categorySlug(category: ProductCategory): string {

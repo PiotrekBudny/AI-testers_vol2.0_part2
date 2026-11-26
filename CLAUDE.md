@@ -63,6 +63,7 @@ tests/                                      Playwright specs (testDir)
   auth.spec.ts                              API session accepted by the app; skipAutoLogin
   loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
+  productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
@@ -359,8 +360,18 @@ Imports between `src/` files are relative and extensionless.
     this.
   - With no results for a search query, `no-products-message` also says
     "Try adjusting your search or" and `reset-search-button` ("Clear
-    filters") appears. `clear-search` (✕) shows inside the search box once
-    it has text.
+    filters") appears. `ProductsPage.expectNoSearchResults()` checks this
+    plus the shared empty texts.
+  - Search box (`product-search`, max 100 characters) is debounced: typing
+    "Bionic" key by key sent one request,
+    `products/search?page=0&size=12&q=Bionic`, and the URL becomes
+    `/products?q=Bionic`. The real API matches `q` against name **and**
+    description, ignoring case ("Bionic" appears only in the iPhone's
+    description).
+  - `clear-search` (✕, `aria-label="Clear search"`) shows inside the search
+    box once it has text. Clicking it empties the box, drops `?q=` from the
+    URL and shows the full list again. `reset-search-button` does the same.
+  - With one match the count reads `1 product matches` (singular).
   - Long texts: `product-name` has `line-clamp-2` and
     `product-description` `line-clamp-3` (ellipsis, overflow hidden), and
     the full text stays in the DOM. Unbroken words wrap
@@ -494,8 +505,11 @@ Imports between `src/` files are relative and extensionless.
   - Every request builds its response from the current `products` with
     `ProductSearchResponseBuilder`, using the request's `page` and `size`.
     So changes apply to the next request, even after the page has loaded.
-  - It doesn't filter by `q`, `category`, price, rating or stock, or sort.
-    It serves `products` in their given order.
+  - It filters by `q` like the real API: a case-insensitive substring of
+    `name` or `description`. It doesn't filter by `category`, price,
+    rating or stock, or sort. It serves matches in their given order.
+  - It records each request's `q` (`null` when absent) in
+    `receivedQueries`. `expectLastSearchedFor(query)` polls the last one.
 - **`CartItemsMock`** (fixture `cartItemsMock`, requested only by tests
   that add to cart): fulfils only `POST /api/v1/cart/items`, so tests never
   change the shared account's real cart. It records each request body in
