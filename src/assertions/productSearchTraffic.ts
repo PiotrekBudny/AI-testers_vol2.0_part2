@@ -1,8 +1,9 @@
 import { expect, type Page, type Response } from '@playwright/test';
+import { apiPaths } from '@/mocks/apiRoutes';
 import type { Product } from '@/models/product';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
-const productSearchPath = '/api/v1/products/search';
+const productSearchPath = apiPaths.productSearch;
 
 export class ProductSearchTraffic {
   private readonly responses: Response[] = [];

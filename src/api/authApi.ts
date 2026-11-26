@@ -1,10 +1,9 @@
 import type { APIRequestContext } from '@playwright/test';
 import type { User } from '@/config/users';
+import { apiPaths } from '@/mocks/apiRoutes';
 import type { ApiSession, LoginRequest, LoginResponse } from '@/models/auth';
 
 export class AuthApi {
-  static readonly signInPath = '/api/v1/users/signin';
-
   constructor(private readonly request: APIRequestContext) {}
 
   async signIn(user: User, baseURL: string): Promise<ApiSession> {
@@ -13,7 +12,7 @@ export class AuthApi {
       password: user.password,
     };
     const response = await this.request.post(
-      new URL(AuthApi.signInPath, baseURL).href,
+      new URL(apiPaths.signIn, baseURL).href,
       { data },
     );
     if (!response.ok()) {

@@ -1,7 +1,8 @@
 import { expect, type Page, type Request } from '@playwright/test';
 import { expectToStay } from '@/assertions/settle';
+import { apiPaths } from '@/mocks/apiRoutes';
 
-const signInPath = '/api/v1/users/signin';
+const signInPath = apiPaths.signIn;
 
 export class SignInTraffic {
   private readonly requests: Request[] = [];
