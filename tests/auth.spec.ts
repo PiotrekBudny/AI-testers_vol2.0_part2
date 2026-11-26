@@ -14,8 +14,8 @@ test.describe('API session', { tag: ['@auth', '@live'] }, () => {
   });
 });
 
-test.describe('with skipAutoLogin', { tag: ['@auth', '@live'] }, () => {
-  test.use({ skipAutoLogin: true });
+test.describe('without a saved session', { tag: ['@auth', '@live'] }, () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
 
   test('visitor is sent to the login form', async ({
     productsPage,

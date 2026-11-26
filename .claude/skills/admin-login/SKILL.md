@@ -1,6 +1,6 @@
 ---
 name: admin-login
-description: "How to act as the admin user (ROLE_ADMIN) on aitesters.byst.re: logging in via the API, writing admin tests, calling admin-only endpoints, and the rules for changing live data. Use it when: (1) writing or changing a test that needs admin privileges, such as the /admin pages (dashboard, products, orders, inventory, coupons, reviews, returns, purchasing, gift cards, VAT rates, currencies, payments, webhooks), /warehouse, or the admin-only menu links; (2) a test must create, change or delete shop data (products, orders, coupons, inventory, users) or set up data through an admin endpoint; (3) driving the app as admin through Playwright MCP, for example to check something only an admin can see; (4) adding admin page objects or an admin API helper; (5) an API call returns 403 for the client account. Builds on the api-login skill (loginViaApi, mcp-login.mjs); read that for the general login mechanics."
+description: "How to act as the admin user (ROLE_ADMIN) on aitesters.byst.re: logging in via the API, writing admin tests, calling admin-only endpoints, and the rules for changing live data. Use it when: (1) writing or changing a test that needs admin privileges, such as the /admin pages (dashboard, products, orders, inventory, coupons, reviews, returns, purchasing, gift cards, VAT rates, currencies, payments, webhooks), /warehouse, or the admin-only menu links; (2) a test must create, change or delete shop data (products, orders, coupons, inventory, users) or set up data through an admin endpoint; (3) driving the app as admin through Playwright MCP, for example to check something only an admin can see; (4) adding admin page objects or an admin API helper; (5) an API call returns 403 for the client account. Builds on the api-login skill (saved storageState, mcp-login.mjs); read that for the general login mechanics."
 ---
 
 # Admin login
@@ -51,8 +51,8 @@ there's no admin page object. Add them when a test first needs them (see below).
   });
   ```
 
-- `loginViaApi` then signs in as admin (cached per worker, per role, separately from the client) and yields `loginViaApi.user` with the admin's `displayName`.
-- The first admin test should also prove the session: no redirect to `/login`, and `navigation.links.profile` shows `ADMIN_DISPLAY_NAME`. That's the admin twin of `tests/auth.spec.ts`.
+- The `storageState` fixture creates the admin state on first use in the run and loads it for subsequent admin tests. Use `getUser('admin').displayName` for the expected profile name.
+- `tests/adminAuth.spec.ts` proves the saved session: no redirect to `/login`, and the profile shows `ADMIN_DISPLAY_NAME`.
 - **Page objects:** follow CLAUDE.md.
   - Add `src/pages/adminDashboardPage.ts` (`readonly url = '/admin'`, extends `BasePage`, `getByTestId` locators grouped as `headings`, `sectionLinks`, `metrics` and so on) and its fixture in `src/fixtures/test.ts`.
   - Admin sub-pages get their own classes (`AdminProductsPage`, `/admin/products`, …).
@@ -61,13 +61,14 @@ there's no admin page object. Add them when a test first needs them (see below).
 
 ## Calling admin endpoints from a test (setup and cleanup)
 
-Use Playwright's `request` fixture with the admin token from `loginViaApi`. Its
-`baseURL` matches the browser's. Put the call in an API class in `src/api/`
+Use Playwright's `request` fixture with the admin token from the saved state's
+localStorage entries. StorageState does not turn that token into an Authorization
+header automatically. Its `baseURL` matches the browser's. Put the call in an API class in `src/api/`
 (like `AuthApi`) that throws on a non-2xx status, so the spec stays free of
 `expect()` and `if`:
 
 ```ts
-const headers = { authorization: `Bearer ${session.token}` };
+const headers = { authorization: `Bearer ${token}` };
 const response = await this.request.post('/api/v1/products', { headers, data: product });
 if (!response.ok()) {
   throw new Error(`POST /api/v1/products returned ${response.status()}`);

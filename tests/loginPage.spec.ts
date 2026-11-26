@@ -3,7 +3,7 @@ import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { getUser } from '@/config/users';
 import { test } from '@/fixtures/test';
 
-test.use({ skipAutoLogin: true });
+test.use({ storageState: { cookies: [], origins: [] } });
 
 test.beforeEach(async ({ loginPage }) => {
   await loginPage.goto();

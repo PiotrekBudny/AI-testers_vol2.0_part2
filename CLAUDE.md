@@ -33,7 +33,7 @@ src/
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
-  api/apiSessions.ts                        per-worker session cache, storageStateFor
+  api/savedAuthState.ts                     creates and shares one saved session per role and origin
   config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
   config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
   config/users.ts                           getUser('client' | 'admin') from env
@@ -72,8 +72,9 @@ src/
   types/locators.ts                         Locators<K> type for locator groups
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
-  auth.spec.ts                              API session accepted by the app; skipAutoLogin
-  loginPage.spec.ts                         login form (skipAutoLogin): sign-in, validation, links
+  auth.spec.ts                              saved API session accepted by the app; logged-out redirect
+  adminAuth.spec.ts                         saved admin API session accepted by the app
+  loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
@@ -86,6 +87,7 @@ tests/                                      Playwright specs (testDir)
   productDetailsPageLivePatched.spec.ts     /products/{id}: real product, stockQuantity patched to 0
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
+global-setup.ts                             private temporary directory for saved sessions
 ```
 
 Imports are extensionless. Anything in `src/` is imported through the `@/`
@@ -134,8 +136,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   It reads the totals in `test-results/results.json` and writes one
   annotation on the run, titled "Playwright results", like
   `4 tests: 4 passed, 0 failed, 0 flaky, 0 skipped (13.3 s)`:
-  - `error` level when any test failed, `warning` when any was flaky,
-    otherwise `notice`.
+  - `error` level when any test failed or the JSON report has run errors
+    (including global setup failures before tests start). Otherwise,
+    `warning` when any test was flaky and `notice` for a clean run.
   - A `warning` when the file is missing (the tests never got to run).
   - It takes an optional results file path for trying it out locally.
 - The GitHub ruleset "main: require CI" (Settings → Rules) makes both
@@ -271,10 +274,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `@auth`, `@products`, `@product-details` or `@cart`.
 - It also carries exactly **one data tag**. `@live`: the test checks real
   backend data. `@mocked`: the endpoints under test are mocked or
-  replayed, **but login (`loginViaApi`) and the page bootstrap
-  (`users/me`, `cart`, `currencies`) still hit the real API**. So no test
-  runs without the backend and the `.env` credentials. `@mocked` and
-  `@live` together cover the whole suite.
+  replayed, **but authenticated tests still use real API login and page
+  bootstrap (`users/me`, `cart`, `currencies`)**. `@mocked` and `@live`
+  together cover the whole suite.
 - The auto fixture `tagPolicy` (`src/fixtures/test.ts`, rules in
   `src/config/testTags.ts`) fails any test that doesn't have exactly one
   feature tag and exactly one data tag, naming what's missing. Verified
@@ -399,7 +401,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   open `/forgot-password` ("Forgot password – Awesome Testing") and
   `/register` ("Create account – Awesome Testing").
 - `tests/loginPage.spec.ts` is the only spec that uses the UI login form,
-  with `skipAutoLogin` for the whole file. Its successful login signs in
+  with empty `storageState` for the whole file. Its successful login signs in
   for real as the client. The rejected-login test uses a random unknown
   username, so failed attempts never count against the shared accounts.
   Its scenarios: valid credentials land on the dashboard; invalid ones
@@ -630,7 +632,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     newest-first by `createdAt`; `id` cannot be overridden.
   - `generateCatalogue(count, overrides)` returns the same list plus a
     typed `first` and `second` (count must be at least 2).
-- Login is real but goes through the API, once per worker (see API login
+- Login goes through the real API once per role and origin in a run (see API login
   below). The mocks cover only the endpoints a test asks for.
 - Four kinds of mock for products (search and details). The class name starts with the
   kind, and each fixture and file is the class name in camelCase
@@ -729,15 +731,17 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     reports the errors.
   - `tests/productsPageLivePatched.spec.ts` also asserts that exactly one
     search was served and that `errors` is empty.
-- **API login (`loginViaApi`)**: tests never log in through the UI form,
+- **API login and saved storageState**: tests never log in through the UI form,
   except `tests/loginPage.spec.ts`, which tests the form itself.
-  The auto `loginViaApi` fixture signs in once per worker with
-  `POST /api/v1/users/signin` (`AuthApi.signIn`). The `storageState`
-  override starts every context with `token`/`refreshToken` in
-  localStorage, and `test.use({ skipAutoLogin: true })` keeps a test
-  logged out. The **api-login** skill (`.claude/skills/api-login/SKILL.md`)
-  covers how to add it to a test or a new role, the logout/`renew` rule,
-  and logging in through Playwright MCP.
+  `global-setup.ts` makes a private temporary directory unique to the run
+  and removes it during teardown. The `storageState` fixture calls
+  `AuthApi.signIn` on first use for each role and origin and saves
+  `token` and `refreshToken` as localStorage entries. Tests share that
+  file across workers. `test.use({ storageState: { cookies: [],
+  origins: [] } })` skips session creation, so tests that never sign in
+  can run without account credentials. Tokens expire after one hour.
+  The **api-login** skill
+  (`.claude/skills/api-login/SKILL.md`) covers tests, roles, and Playwright MCP.
 - **`FakeProductSearchMock`** (fixture `fakeProductSearchMock`): the
   fixture creates it with 8 generated products and registers the route before the test
   body runs. Its data can be changed afterwards:
@@ -844,7 +848,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
   admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
   modelled in code yet: no `warehouse`/`admin` menu links in
-  `NavigationBar`, no admin page objects, no admin specs. The
+  `NavigationBar`, no admin page objects; `adminAuth.spec.ts` only checks the saved session. The
   **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
   mapped test ids, the admin-only endpoints and the agreed rules for admin
   tests (separate `tests/admin*.spec.ts`, live writes only on self-created
@@ -853,14 +857,12 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
   individually.
-- Tests in one worker share that worker's API session (same `token` and
-  `refreshToken`); workers have separate sessions. Whether the backend
-  rotates refresh tokens is unknown. If it does, a refresh in one test
-  could invalidate the next test's copy. It can't trigger today: a run
-  takes seconds, the cache renews 120 s before the JWT expires, and no
-  test logs out. Logging out is covered by the `renew` rule in the
-  api-login skill. If
-  rotation ever bites, the fix is one session per test.
+- Tests of one role share its saved `token` and `refreshToken` across workers.
+  Whether the backend rotates refresh tokens is unknown. A real refresh or
+  logout could invalidate the saved session for other tests in the run.
+  Current tests do neither; 401 tests mock refresh. Runs normally take seconds,
+  while the JWT lasts one hour. If rotation becomes a problem, use separate
+  accounts or sessions for tests that change authentication state.
 - A rare uncaptured flake: twice, one full parallel run had one failing
   test (once with the UI-login setup, once right after the switch to API
   login). Neither error was saved. Each time the following runs all passed,

@@ -1,11 +1,10 @@
 import { existsSync } from 'node:fs';
 import { test as base, expect } from '@playwright/test';
-import { ApiSessions, storageStateFor } from '@/api/apiSessions';
-import { AuthApi } from '@/api/authApi';
+import { savedAuthStateFor } from '@/api/savedAuthState';
 import { ProductSearchTraffic } from '@/assertions/productSearchTraffic';
 import { SignInTraffic } from '@/assertions/signInTraffic';
 import { tagPolicyViolations } from '@/config/testTags';
-import type { UserRole } from '@/config/users';
+import { getUser, type UserRole } from '@/config/users';
 import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
 import { ApiErrorMock } from '@/mocks/apiErrorMock';
@@ -16,7 +15,6 @@ import { HarReplayMock } from '@/mocks/harReplayMock';
 import { LivePatchedProductDetailsMock } from '@/mocks/livePatchedProductDetailsMock';
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
 import { NetworkErrorMock } from '@/mocks/networkErrorMock';
-import type { ApiSession } from '@/models/auth';
 import { CartPage } from '@/pages/cartPage';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
@@ -27,7 +25,6 @@ import { RegisterPage } from '@/pages/registerPage';
 
 export type Options = {
   userRole: UserRole;
-  skipAutoLogin: boolean;
   harRecording: boolean;
 };
 
@@ -53,7 +50,6 @@ type Fixtures = {
   harReplayMock: HarReplayMock;
   livePatchedProductSearchMock: LivePatchedProductSearchMock;
   livePatchedProductDetailsMock: LivePatchedProductDetailsMock;
-  loginViaApi: ApiSession | null;
   tagPolicy: undefined;
 };
 
@@ -66,22 +62,9 @@ function requireBaseURL(baseURL: string | undefined): string {
   return baseURL;
 }
 
-type WorkerFixtures = {
-  apiSessions: ApiSessions;
-};
-
-export const test = base.extend<Options & Fixtures, WorkerFixtures>({
+export const test = base.extend<Options & Fixtures>({
   userRole: ['client', { option: true }],
-  skipAutoLogin: [false, { option: true }],
   harRecording: [false, { option: true }],
-  apiSessions: [
-    async ({ playwright }, use) => {
-      const request = await playwright.request.newContext();
-      await use(new ApiSessions(new AuthApi(request)));
-      await request.dispose();
-    },
-    { scope: 'worker' },
-  ],
   tagPolicy: [
     async ({ userRole: _userRole }, use, testInfo) => {
       const violations = tagPolicyViolations(testInfo.tags);
@@ -94,22 +77,8 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     },
     { auto: true },
   ],
-  loginViaApi: [
-    async ({ skipAutoLogin, userRole, apiSessions, baseURL }, use) => {
-      if (skipAutoLogin) {
-        await use(null);
-        return;
-      }
-      await use(await apiSessions.get(userRole, requireBaseURL(baseURL)));
-    },
-    { auto: true },
-  ],
-  storageState: async ({ loginViaApi, baseURL }, use) => {
-    await use(
-      loginViaApi === null
-        ? undefined
-        : storageStateFor(loginViaApi, requireBaseURL(baseURL)),
-    );
+  storageState: async ({ userRole, baseURL }, use) => {
+    await use(await savedAuthStateFor(userRole, requireBaseURL(baseURL)));
   },
   contextOptions: async ({ contextOptions, harRecording }, use, testInfo) => {
     if (!harRecording) {
@@ -186,11 +155,11 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     await use(mock);
   },
   cartMock: async (
-    { page, loginViaApi, fakeProductSearchMock, fakeProductDetailsMock },
+    { page, userRole, fakeProductSearchMock, fakeProductDetailsMock },
     use,
   ) => {
     fakeProductDetailsMock.alsoServe(() => fakeProductSearchMock.products);
-    const mock = new CartMock(page, loginViaApi?.user.username ?? '', () => [
+    const mock = new CartMock(page, getUser(userRole).username, () => [
       ...fakeProductSearchMock.products,
       fakeProductDetailsMock.product,
     ]);

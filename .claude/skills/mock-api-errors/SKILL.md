@@ -122,15 +122,15 @@ the serving route too.
 
 ## 401 rule: never let a 401 reach the real refresh
 
-On a 401 the app calls `POST /api/v1/users/refresh` with the worker's
+On a 401 the app calls `POST /api/v1/users/refresh` with the role's
 **shared** refresh token. A real refresh could rotate it and break the
-next test in that worker (see the api-login skill). So:
+other tests using that role (see the api-login skill). So:
 
 - For a 401 on any endpoint, mock `tokenRefresh` (and `logout`) too. `rejectSession()`
   does all three for `/me`; the test asserts `expectRequestCount('logout', 0)`.
 - A 401 test may clear the context's localStorage, which is harmless: each
-  test gets a new context from the cached session. It must not call the
-  real logout. If it does, follow the api-login `renew` rule.
+  test gets a new context from the saved storageState. Tests that call the
+  real logout must use a separate API session, as described in api-login.
 
 ## App behaviour (verified through Playwright MCP)
 

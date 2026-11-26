@@ -9,6 +9,7 @@ const isCI = !!process.env.CI;
 
 export default defineConfig<Options>({
   testDir: './tests',
+  globalSetup: './global-setup.ts',
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
