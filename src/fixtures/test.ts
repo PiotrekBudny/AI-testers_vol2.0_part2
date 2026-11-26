@@ -93,7 +93,11 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
     if (!existsSync(harPath)) {
       return;
     }
-    writeHar(harPath, sanitizeHar(readHar(harPath)));
+    const har = sanitizeHar(readHar(harPath));
+    writeHar(harPath, har);
+    if (har.log.entries.length === 0) {
+      return;
+    }
     await testInfo.attach('network.har', {
       path: harPath,
       contentType: 'application/json',

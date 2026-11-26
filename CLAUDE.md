@@ -164,7 +164,8 @@ Imports between `src/` files are relative and extensionless.
     so every test (and every retry) writes its own
     `test-results/<test>/network.har` and attaches it to the HTML report
     (skipped when no file was written, for example when the context never
-    opened).
+    opened, and when the sanitized HAR has no entries, for example login
+    form tests, whose only call, `users/signin`, is not on the allowlist).
   - `harUrlFilter` is an **allowlist**: `/api/v1/` `products`, `cart`,
     `currencies` and `users/me` only. Auth endpoints (sign-in, a token
     refresh, register) are never recorded, so passwords and refresh tokens
