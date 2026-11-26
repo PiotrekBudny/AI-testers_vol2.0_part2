@@ -12,6 +12,7 @@ export class CartMock {
   private readonly items = new Map<number, number>();
   private held: Promise<void> = Promise.resolve();
   private releaseHeld: () => void = () => {};
+  private holding = false;
 
   constructor(
     private readonly page: Page,
@@ -30,6 +31,11 @@ export class CartMock {
   }
 
   seed(items: CartItem[]): void {
+    for (const { productId } of items) {
+      if (!this.knows(productId)) {
+        throw new Error(unknownProduct(productId));
+      }
+    }
     this.items.clear();
     for (const { productId, quantity } of items) {
       this.items.set(productId, quantity);
@@ -58,12 +64,14 @@ export class CartMock {
     };
   }
 
+  private knows(productId: number): boolean {
+    return this.products().some((product) => product.id === productId);
+  }
+
   private priceOf(prices: Map<number, number>, productId: number): number {
     const price = prices.get(productId);
     if (price === undefined) {
-      throw new Error(
-        `CartMock has no product ${productId}: add it to fakeProductSearchMock.products or use fakeProductDetailsMock.product`,
-      );
+      throw new Error(unknownProduct(productId));
     }
     return price;
   }
@@ -100,11 +108,16 @@ export class CartMock {
   }
 
   holdResponses(): () => void {
+    if (this.holding) {
+      return this.releaseHeld;
+    }
+    this.holding = true;
     let resolveHeld: () => void = () => {};
     this.held = new Promise<void>((resolve) => {
       resolveHeld = resolve;
     });
     this.releaseHeld = () => {
+      this.holding = false;
       this.held = Promise.resolve();
       resolveHeld();
     };
@@ -137,6 +150,13 @@ export class CartMock {
     }
     const item = route.request().postDataJSON() as CartItem;
     this.addedItems.push(item);
+    if (!this.knows(item.productId)) {
+      await route.fulfill({
+        status: 500,
+        json: { message: unknownProduct(item.productId) },
+      });
+      return;
+    }
     await this.applyAfterHold(route, () => {
       this.items.set(
         item.productId,
@@ -186,6 +206,10 @@ export class CartMock {
     }
     await route.fulfill({ json: this.cart() });
   }
+}
+
+function unknownProduct(productId: number): string {
+  return `CartMock has no product ${productId}: add it to fakeProductSearchMock.products or use fakeProductDetailsMock.product`;
 }
 
 function roundToCents(amount: number): number {

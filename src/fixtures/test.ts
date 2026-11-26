@@ -4,6 +4,7 @@ import { ApiSessions, storageStateFor } from '@/api/apiSessions';
 import { AuthApi } from '@/api/authApi';
 import { ProductSearchTraffic } from '@/assertions/productSearchTraffic';
 import { SignInTraffic } from '@/assertions/signInTraffic';
+import { tagPolicyViolations } from '@/config/testTags';
 import type { UserRole } from '@/config/users';
 import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
@@ -53,6 +54,7 @@ type Fixtures = {
   livePatchedProductSearchMock: LivePatchedProductSearchMock;
   livePatchedProductDetailsMock: LivePatchedProductDetailsMock;
   loginViaApi: ApiSession | null;
+  tagPolicy: undefined;
 };
 
 function requireBaseURL(baseURL: string | undefined): string {
@@ -79,6 +81,18 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
       await request.dispose();
     },
     { scope: 'worker' },
+  ],
+  tagPolicy: [
+    async ({ userRole: _userRole }, use, testInfo) => {
+      const violations = tagPolicyViolations(testInfo.tags);
+      if (violations.length > 0) {
+        throw new Error(
+          `"${testInfo.title}" needs ${violations.join(' and ')}. See "Test categories" in CLAUDE.md.`,
+        );
+      }
+      await use(undefined);
+    },
+    { auto: true },
   ],
   loginViaApi: [
     async ({ skipAutoLogin, userRole, apiSessions, baseURL }, use) => {

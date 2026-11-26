@@ -5,6 +5,13 @@
   "private": true,
   "scripts": {
     "test": "playwright test",
+    "test:auth": "playwright test --project=auth",
+    "test:products": "playwright test --project=products",
+    "test:product-details": "playwright test --project=product-details",
+    "test:cart": "playwright test --project=cart",
+    "test:mocked": "playwright test --grep @mocked",
+    "test:live": "playwright test --grep @live",
+    "test:negative": "playwright test --grep @negative",
     "typecheck": "tsc --noEmit",
     "check": "biome check --write --unsafe",
     "prepare": "husky",

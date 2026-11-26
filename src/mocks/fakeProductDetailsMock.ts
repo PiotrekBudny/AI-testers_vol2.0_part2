@@ -64,7 +64,7 @@ export class FakeProductDetailsMock {
     if (pathname.endsWith('/reviews/summary')) {
       await route.fulfill({
         json: {
-          productId: this.product.id,
+          productId: Number(pathname.split('/').filter(Boolean).at(-3)),
           averageRating: null,
           reviewCount: 0,
           distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },

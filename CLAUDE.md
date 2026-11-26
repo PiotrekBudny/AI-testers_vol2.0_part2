@@ -34,6 +34,7 @@ src/
   components/toast.ts                       Toast (notification viewport)
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
   api/apiSessions.ts                        per-worker session cache, storageStateFor
+  config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
   config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
@@ -112,7 +113,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `engine-strict=true`. Never bypass nvm or engine checks.
 - `.npmrc` has `save-exact=true`: every dependency is pinned to an exact
   version, with no `^` or `~`.
-- `npm test` runs Playwright, `npm run typecheck` runs `tsc --noEmit`,
+- `npm test` runs Playwright (every project, so the whole suite once).
+  `npm run test:<category>` runs one category (`test:auth`,
+  `test:products`, `test:product-details`, `test:cart`, `test:mocked`,
+  `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
@@ -211,7 +215,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
-  locally. The single project is `mockingTests` (Desktop Chrome).
+  locally. Desktop Chrome is set in the top-level `use`, and the projects
+  split the suite by category (see Test categories).
 - HAR recording is the `harRecording` option fixture, set in the config
   to `!isCI`, so it's **on locally only**. The config is typed
   `defineConfig<Options>` to accept it.
@@ -256,6 +261,42 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - Known categories (seed data): Electronics, Audio, Books, Computers, Gaming,
   Home & Kitchen, Wearables.
 - Known image paths: `/images/{iphone,samsung,mac,ps5,ninja,cleancode,applewatch,sony}.png`.
+
+## Test categories (tags and projects)
+
+- Every spec wraps its tests in **top-level** `test.describe` blocks with
+  tags. Describes are **never nested**, so a file with several groups (for
+  example `tests/loginPage.spec.ts`) has several top-level describes.
+- Every test carries exactly **one feature tag**, set on its describe:
+  `@auth`, `@products`, `@product-details` or `@cart`.
+- It also carries exactly **one data tag**. `@live`: the test checks real
+  backend data. `@mocked`: the endpoints under test are mocked or
+  replayed, **but login (`loginViaApi`) and the page bootstrap
+  (`users/me`, `cart`, `currencies`) still hit the real API**. So no test
+  runs without the backend and the `.env` credentials. `@mocked` and
+  `@live` together cover the whole suite.
+- The auto fixture `tagPolicy` (`src/fixtures/test.ts`, rules in
+  `src/config/testTags.ts`) fails any test that doesn't have exactly one
+  feature tag and exactly one data tag, naming what's missing. Verified
+  with a throwaway spec: two feature tags and a missing data tag both fail.
+- Optional tags: `@negative` (error and validation scenarios; set per test
+  when only some tests in a describe are negative), `@search`,
+  `@network` and `@har`.
+- **Projects** in `playwright.config.ts` are built from the feature tags
+  (`grep: /@cart(?![\w-])/` and so on), so they partition the suite: a full
+  run executes each test once, and `--project=cart` runs one feature. The
+  lookahead keeps `@products` from matching `@product-details`.
+- The `untagged` project (`grepInvert` of all feature tags) makes sure a
+  test with no feature tag still runs, so `tagPolicy` fails it instead of
+  it silently dropping out of every feature project. When everything is
+  tagged it's empty, and `--project=untagged` on its own then prints
+  "No tests found" and exits 1: that's the correct state, not an error.
+- Cross-cutting runs use `--grep`: `--grep @live`, `--grep @negative`,
+  `--grep "@cart.*@negative"`. A new feature tag needs an entry in
+  `featureTags` in `src/config/testTags.ts` (shared by the config and
+  `tagPolicy`) and a `test:<feature>` script.
+- Verified: 10 auth + 17 products + 7 product-details + 12 cart + 0
+  untagged = 46 tests, the same as the whole suite.
 
 ## Page objects
 
@@ -727,7 +768,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     `fakeProductSearchMock.products` plus `fakeProductDetailsMock.product`;
     an item whose product is in neither throws a clear error instead of
     being priced at $0.
-  - `seed(items)` starts a test with items. `cart()` returns the current
+  - `seed(items)` starts a test with items. It throws at once for a
+    product the mocks don't know, and a POST for an unknown product gets a
+    500 with the same message, instead of a hanging request. `cart()` returns the current
     cart, `expectCartItems(items)` polls the state, and `addedItems` /
     `updatedItems` log the POST / PUT bodies (`expectAddedItems`,
     `expectUpdatedItems`).
@@ -737,7 +780,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
     checks that nothing more arrives within `ms`.
   - `holdResponses()` holds every write until the returned function is
-    called. The change is applied only on release, so a `GET /cart` during
+    called. Calling it again while holding returns the same release.
+    The change is applied only on release, so a `GET /cart` during
     the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test
     never leaves a route handler hanging.

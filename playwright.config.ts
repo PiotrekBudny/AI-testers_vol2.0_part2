@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import dotenv from 'dotenv';
+import { featureTags, tagPattern } from '@/config/testTags';
 import type { Options } from '@/fixtures/test';
 
 dotenv.config({ quiet: true });
@@ -19,14 +20,13 @@ export default defineConfig<Options>({
       ]
     : [['list'], ['html', { open: 'never' }]],
   use: {
+    ...devices['Desktop Chrome'],
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',
     trace: isCI ? 'off' : 'on-first-retry',
     harRecording: !isCI,
   },
   projects: [
-    {
-      name: 'mockingTests',
-      use: { ...devices['Desktop Chrome'] },
-    },
+    ...featureTags.map((tag) => ({ name: tag, grep: tagPattern(tag) })),
+    { name: 'untagged', grepInvert: featureTags.map(tagPattern) },
   ],
 });
