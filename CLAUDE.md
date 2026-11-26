@@ -133,7 +133,19 @@ Imports between `src/` files are relative and extensionless.
   of Windows) for exploring the live UI from Claude Code. Claude Code asks
   each user to approve project MCP servers on first use. The server writes
   snapshots and console logs to `.playwright-mcp/` (git-ignored).
-- `.claude/settings.json` holds a shared allowlist of read-only commands.
+- `.claude/settings.json` holds a shared allowlist of read-only commands
+  and two Claude Code hooks:
+  - **Stop**: runs `npm run typecheck && npm run check` at the end of each
+    turn. On failure it exits 2 with the output on stderr, so Claude must
+    fix it before it can stop. `check` runs Biome with `--write --unsafe`,
+    so it may reformat files.
+  - **PreToolUse** on `Bash|PowerShell`, only for `git push*` (the hook's
+    `if` field): `.claude/hooks/block-force-push.cjs` blocks `--force`,
+    `-f` (also in clusters such as `-uf`) and `--force=…`, and allows
+    `--force-with-lease` and `--force-if-includes`. It also catches a push
+    later in a chain (`git status && git push -f`). A `+refspec` push isn't
+    caught, and neither is `git -C dir push -f`, because the `if` rule
+    doesn't match it.
 - `.claude/skills/` holds project skills. **api-login** covers API
   authentication in tests and in Playwright MCP. Its `mcp-login.mjs`
   signs in from `.env` and writes a one-off, git-ignored
