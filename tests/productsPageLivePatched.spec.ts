@@ -19,7 +19,7 @@ test('client sees real products with the first one patched to sold out', async (
   await productsPage.goto();
 
   await productsPage.productItems.first().waitFor();
-  livePatchedProductSearchMock.expectServedWithoutErrors(1);
+  await livePatchedProductSearchMock.expectServedWithoutErrors(1);
   livePatchedProductSearchMock.expectOnlyFirstProductPatched();
   await productsPage.expectToShowProducts(
     livePatchedProductSearchMock.lastServed().content,

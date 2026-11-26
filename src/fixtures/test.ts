@@ -12,7 +12,9 @@ import { CartItemsMock } from '@/mocks/cartItemsMock';
 import { FakeProductDetailsMock } from '@/mocks/fakeProductDetailsMock';
 import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
 import { HarReplayMock } from '@/mocks/harReplayMock';
+import { LivePatchedProductDetailsMock } from '@/mocks/livePatchedProductDetailsMock';
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
+import { NetworkErrorMock } from '@/mocks/networkErrorMock';
 import type { ApiSession } from '@/models/auth';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
@@ -44,8 +46,10 @@ type Fixtures = {
   fakeProductDetailsMock: FakeProductDetailsMock;
   cartItemsMock: CartItemsMock;
   apiErrorMock: ApiErrorMock;
+  networkErrorMock: NetworkErrorMock;
   harReplayMock: HarReplayMock;
   livePatchedProductSearchMock: LivePatchedProductSearchMock;
+  livePatchedProductDetailsMock: LivePatchedProductDetailsMock;
   loginViaApi: ApiSession | null;
 };
 
@@ -178,6 +182,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   apiErrorMock: async ({ page }, use) => {
     await use(new ApiErrorMock(page));
   },
+  networkErrorMock: async ({ page }, use) => {
+    await use(new NetworkErrorMock(page));
+  },
   harReplayMock: async ({ page, baseURL, userRole }, use, testInfo) => {
     await use(
       new HarReplayMock(
@@ -190,6 +197,9 @@ export const test = base.extend<Options & Fixtures, WorkerFixtures>({
   },
   livePatchedProductSearchMock: async ({ page }, use) => {
     await use(new LivePatchedProductSearchMock(page));
+  },
+  livePatchedProductDetailsMock: async ({ page }, use) => {
+    await use(new LivePatchedProductDetailsMock(page));
   },
 });
 
