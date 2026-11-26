@@ -12,7 +12,11 @@ export default defineConfig<Options>({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   reporter: isCI
-    ? [['html'], ['json', { outputFile: 'test-results/results.json' }]]
+    ? [
+        ['list'],
+        ['html'],
+        ['json', { outputFile: 'test-results/results.json' }],
+      ]
     : [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.BASE_URL ?? 'https://aitesters.byst.re',

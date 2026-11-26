@@ -1,7 +1,7 @@
 {
   "name": "ai-testers_vol2.0_part2",
   "version": "1.0.0",
-  "description": "Playwright tests for aitesters.byst.re using mocked API responses",
+  "description": "Playwright end-to-end tests for aitesters.byst.re, mostly on mocked API responses",
   "private": true,
   "scripts": {
     "test": "playwright test",
