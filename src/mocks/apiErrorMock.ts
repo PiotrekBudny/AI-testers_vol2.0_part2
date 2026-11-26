@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { expectToStay } from '@/assertions/settle';
 import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
 export type ApiErrorStatus =
@@ -69,12 +70,13 @@ export class ApiErrorMock {
     count: number,
     forMs: number,
   ): Promise<void> {
-    await this.expectRequestCount(endpoint, count);
-    await this.page.waitForTimeout(forMs);
-    expect(
-      this.requestCount(endpoint),
-      `mocked error responses served for ${endpoint} after ${forMs} ms`,
-    ).toBe(count);
+    await expectToStay(
+      this.page,
+      () => this.requestCount(endpoint),
+      count,
+      forMs,
+      `mocked error responses served for ${endpoint}`,
+    );
   }
 
   async expectRequestCount(

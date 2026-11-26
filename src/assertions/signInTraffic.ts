@@ -1,4 +1,5 @@
 import { expect, type Page, type Request } from '@playwright/test';
+import { expectToStay } from '@/assertions/settle';
 
 const signInPath = '/api/v1/users/signin';
 
@@ -22,11 +23,13 @@ export class SignInTraffic {
   }
 
   async expectNoneSent(forMs: number): Promise<void> {
-    await this.page.waitForTimeout(forMs);
-    expect(
-      this.requests,
-      `no ${signInPath} request was expected within ${forMs} ms`,
-    ).toHaveLength(0);
+    await expectToStay(
+      this.page,
+      () => this.requests.length,
+      0,
+      forMs,
+      `${signInPath} requests sent`,
+    );
   }
 
   private async expectSingleResponseWithStatus(status: number): Promise<void> {

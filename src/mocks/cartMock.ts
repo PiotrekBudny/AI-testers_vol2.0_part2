@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { expectToStay } from '@/assertions/settle';
 import type { Cart, CartItem } from '@/models/cart';
 import type { Product } from '@/models/product';
 import { apiRoutes } from './apiRoutes';
@@ -89,12 +90,13 @@ export class CartMock {
     items: CartItem[],
     forMs: number,
   ): Promise<void> {
-    await this.expectAddedItems(items);
-    await this.page.waitForTimeout(forMs);
-    expect(
-      this.addedItems,
-      `items posted to the cart after ${forMs} ms`,
-    ).toEqual(items);
+    await expectToStay(
+      this.page,
+      () => this.addedItems,
+      items,
+      forMs,
+      'items posted to the cart',
+    );
   }
 
   holdResponses(): () => void {

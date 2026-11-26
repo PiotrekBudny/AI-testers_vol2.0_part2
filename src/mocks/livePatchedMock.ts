@@ -4,6 +4,7 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { expectToStay } from '@/assertions/settle';
 import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
 export type LiveTransform<T> = (realResponse: T) => T;
@@ -54,12 +55,14 @@ export class LivePatchedMock<T> {
       })
       .toBeGreaterThanOrEqual(count);
     expect(this.errors, `errors patching ${this.endpoint}`).toEqual([]);
-    await this.page.waitForTimeout(settleMs);
+    await expectToStay(
+      this.page,
+      () => this.servedResponses.length,
+      count,
+      settleMs,
+      `patched ${this.endpoint} responses served`,
+    );
     expect(this.errors, `errors patching ${this.endpoint}`).toEqual([]);
-    expect(
-      this.servedResponses,
-      `patched ${this.endpoint} responses after ${settleMs} ms`,
-    ).toHaveLength(count);
   }
 
   private async fulfill(
