@@ -14,7 +14,7 @@ Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
 (`page.route`), plus a few tests against the live API. Current scope:
 the login form, the product list (search, errors, network errors), the
-product details page and the cart.
+product details page, the cart and checkout (up to the payment page).
 
 - API docs (Swagger UI): <https://awesome.byst.re/swagger-ui/index.html>;
   raw spec at `https://awesome.byst.re/v3/api-docs` (fetch with `curl`).
@@ -29,6 +29,7 @@ product details page and the cart.
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
+  components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
@@ -38,14 +39,18 @@ src/
   config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
+  generators/addressGenerator.ts            faker-based Address (valid ZIP, country Poland)
   generators/productGenerator.ts            faker-based Product generator
-  formatters/price.ts                       formatUsd: en-US USD price text as the app shows it
+  formatters/price.ts                       formatUsd (en-US USD text as the app shows it), roundToCents
   models/product.ts                         Product (one search hit), ProductDetails
   models/auth.ts                            LoginRequest, LoginResponse, ApiSession
   models/cart.ts                            Cart, CartItem (cart API shapes used so far)
+  models/order.ts                           Address, Order, OrderItem, TaxPreview, VatRate, FieldErrors
   models/productSearchResponse.ts           response, facets, price range types
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
   pages/cartPage.ts                         CartPage (/cart)
+  pages/checkoutPage.ts                     CheckoutPage (/checkout)
+  pages/paymentPage.ts                      PaymentPage (/orders/{id}/pay, landing check only)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
@@ -61,6 +66,7 @@ src/
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
   mocks/apiRoutes.ts                        apiPaths (endpoint paths), route globs, ApiEndpoint
   mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
+  mocks/checkoutMock.ts                     fake checkout on top of CartMock: tax preview, POST /orders, order + payments reads
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
@@ -82,6 +88,8 @@ tests/                                      Playwright specs (testDir)
   productsPageNetworkErrors.spec.ts         /products: connection drop, recovery after 2 aborts
   cartPage.spec.ts                          /cart: add/update/remove, seeded, two products, Update rules, clear, links
   cartPageApiErrors.spec.ts                 /cart negative: PUT 500, DELETE 500, dropped connection on update
+  checkoutPage.spec.ts                      /checkout: order placed, no-VAT country, empty cart, loading, pending, validation, back
+  checkoutPageApiErrors.spec.ts             /checkout negative: 409 conflict, 500, server field errors, dropped connection + retry
   productDetailsPage.spec.ts                /products/{id}: details, 404, cart 500, out of stock, clicks
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
@@ -119,7 +127,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   version, with no `^` or `~`.
 - `npm test` runs Playwright (every project, so the whole suite once).
   `npm run test:<category>` runs one category (`test:auth`,
-  `test:products`, `test:product-details`, `test:cart`, `test:mocked`,
+  `test:products`, `test:product-details`, `test:cart`, `test:checkout`,
+  `test:mocked`,
   `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
@@ -138,7 +147,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `Playwright shard 1/4` … `4/4`: a matrix (`fail-fast: false`) that
     runs `npm test -- --shard=i/4` on Chromium, following
     <https://playwright.dev/docs/test-sharding>. `fullyParallel` is on,
-    so tests (not files) are split evenly (12/12/12/11 at 47 tests). Each
+    so tests (not files) are split evenly (a quarter of the suite each). Each
     shard runs `global-setup.ts` and signs in on its own. Each uploads
     its `blob-report/` as `blob-report-<i>` (kept 1 day).
   - `Playwright tests` (the merge job): `needs` the shards and runs
@@ -154,7 +163,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - To change the shard count, edit both `shardIndex` and `shardTotal`
     in the matrix.
   - Verified locally: four `CI=1 … --shard=i/4 --reporter=blob` runs
-    merged with `merge.config.ts` into one report of 47 tests.
+    merged with `merge.config.ts` into one report (47 tests at the time).
 - In the merge job, unless the run was cancelled, the "Annotate test
   results" step runs `.github/scripts/annotate-playwright-results.cjs`
   on the merged JSON, so there is one annotation for all shards.
@@ -259,7 +268,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     opened, and when the sanitized HAR has no entries, for example login
     form tests, whose only call, `users/signin`, is not on the allowlist).
   - `harUrlFilter` is an **allowlist**: `/api/v1/` `products`, `cart`,
-    `currencies` and `users/me` only. Auth endpoints (sign-in, a token
+    `currencies`, `users/me` and `orders` only (order addresses in tests
+    are generated, never real). Auth endpoints (sign-in, a token
     refresh, register) are never recorded, so passwords and refresh tokens
     stay out. Add an endpoint there when a test needs it in the HAR.
   - After the context closes, the fixture runs `sanitizeHar` on the file
@@ -300,7 +310,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   tags. Describes are **never nested**, so a file with several groups (for
   example `tests/loginPage.spec.ts`) has several top-level describes.
 - Every test carries exactly **one feature tag**, set on its describe:
-  `@auth`, `@products`, `@product-details` or `@cart`.
+  `@auth`, `@products`, `@product-details`, `@cart` or `@checkout`.
 - It also carries exactly **one data tag**. `@live`: the test checks real
   backend data. `@mocked`: the endpoints under test are mocked or
   replayed, **but authenticated tests still use real API login and page
@@ -326,8 +336,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `--grep "@cart.*@negative"`. A new feature tag needs an entry in
   `featureTags` in `src/config/testTags.ts` (shared by the config and
   `tagPolicy`) and a `test:<feature>` script.
-- Verified: 10 auth + 17 products + 7 product-details + 12 cart + 0
-  untagged = 46 tests, the same as the whole suite.
+- Verified: 11 auth + 17 products + 7 product-details + 12 cart + 12
+  checkout + 0 untagged = 59 tests, the same as the whole suite.
 
 ## Page objects
 
@@ -642,6 +652,66 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     page) shows `totalItems` as text (units, not lines), empty at 0. Its
     `aria-label` reads `Cart, 1 item`. `BasePage.cartCounter` /
     `expectCartCount(n)`.
+- Checkout page (`/checkout`, "Checkout – Awesome Testing"), modelled as
+  `CheckoutPage` with one `CheckoutItemRow` per line. Mapped through MCP
+  with a fake cart and every non-GET blocked, so no real order or cart
+  change was made:
+  - **Requests on load:** `users/me`, `cart` (several times),
+    `currencies`, then `GET /products/{id}` per cart line. While
+    `GET /cart` is pending, only `checkout-loading` "Loading checkout..."
+    renders.
+  - **Empty cart:** `/checkout` redirects to `/cart` (no toast).
+  - **Summary:** rows `checkout-item-{id}` with `-name-`, `-price-`,
+    `-quantity-`, `-total-` and `-image-`; `checkout-items-value` (units),
+    `checkout-total-value` (summary total) and `checkout-total-amount`
+    (form total). **`checkout-total` is a duplicated test id** (on both
+    totals' wrappers), so never locate by it. `checkout-back-button`
+    "← Back to Cart" leads to `/cart`.
+  - **Form** (`checkout-form`): plain text inputs with no native
+    validation, `checkout-{street,city,state,zip,country}-input`, with
+    errors in `checkout-<same>-error`. The JSON fields are `street`,
+    `city`, `state`, `zipCode`, `country` (`AddressDto`). The `zipCode`
+    field's test ids say `zip`.
+  - **Client validation** runs on submit, then again as you type, and
+    sends nothing while a field is invalid: `Street address is required`,
+    `City is required`, `State is required`, `ZIP code is required`,
+    `Country is required` (whitespace-only counts as empty), and
+    `Invalid postal/zip code format` (the API pattern
+    `^(?:[0-9]{2}(?:-[0-9]{3})?|[0-9]{5}(?:-[0-9]{4})?)$`). Invalid inputs
+    get `aria-invalid="true"`. `CheckoutPage.expectValidationErrors`.
+  - **VAT preview:** the country input sends a debounced
+    `GET /api/v1/cart/tax-preview?country=<name or code>` (one request per
+    typed word). `checkout-tax-label` reads `Includes VAT 23% (PL)` and
+    `checkout-tax-amount` the amount. A 404 (no rate) shows
+    `checkout-tax-unavailable`: `No VAT rate for "<x>"; the order is
+    placed without VAT.` **The real endpoint reads the real cart**, so
+    with a mocked cart it reports $0.00; tests mock it (`CheckoutMock`).
+  - **Place Order** sends `POST /api/v1/orders` with the address and an
+    `Idempotency-Key: <uuid>` header. While pending, the button reads
+    `Processing...` and is disabled (the inputs stay enabled), and forced
+    clicks or `dispatchEvent` send nothing more.
+  - **Success (201 `OrderDto`)** navigates to `/orders/{id}/pay`, with no
+    toast. The backend empties the cart, so the counter goes to 0.
+  - **Failures** are never retried (one request). The address stays, the
+    button returns to `Place Order`, enabled, and there is no toast:
+    - 409: `checkout-availability-error` (`role="alert"`) with a fixed
+      text, "Some items are no longer available in the requested quantity.
+      Your cart was preserved; review it before trying again."
+    - 400/404/500/503 with `{message}`: `checkout-submit-error`
+      (`role="alert"`) shows the backend `message`.
+    - 400 with field keys (`ValidationErrorsDto`): the messages go to the
+      field errors, with `aria-invalid`.
+    - Dropped connection: `checkout-submit-error` "Failed to create order.
+      Please try again." **Submitting again reuses the same
+      `Idempotency-Key`**, so a retry can't create a second order.
+- Payment page (`/orders/{id}/pay`, "Pay for order – Awesome Testing"),
+  modelled as `PaymentPage` for the landing check only:
+  `expectToShowOrder(order)` checks the URL, title, `payment-title`
+  "Pay for order #{id}", `payment-order-total` and
+  `payment-order-vat-label` ("incl. VAT 23% (PL)") with `payment-order-vat`.
+  It loads `GET /orders/{id}` and `GET /orders/{orderId}/payments` (an
+  array) and shows a `reservation-countdown`. The card form
+  (`payment-card-*`, `payment-submit`) isn't modelled.
 
 ## Mocking conventions
 
@@ -820,6 +890,52 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test
     never leaves a route handler hanging.
+  - `holdReads()` holds every `GET /cart` the same way (a second
+    `ResponseHold`), for the "Loading checkout..." state. Set it before
+    `goto`; teardown releases it too.
+  - For other mocks that build on the cart: `lines()` returns the items
+    joined with their products (`{product, quantity}`), and `clear()`
+    empties the cart (`DELETE /cart` uses it too).
+- **`CheckoutMock`** (fixture `checkoutMock`, depends on `cartMock`) fakes
+  checkout **on top of** `CartMock`. It never routes `/cart` or
+  `/cart/items` itself; it reads and changes the cart only through
+  `cartMock.cart()`, `lines()` and `clear()`. So a checkout test gets the
+  whole fake stack (search, details, cart, checkout) by requesting it.
+  - `GET /cart/tax-preview?country=`: resolves a country name or code
+    (case-insensitive) in its VAT table (PL 23, DE 19, US 0, copied from
+    the live `/vat-rates`; `setVatRate(rate)` adds one). Amounts are
+    `taxAmount = round2(total × rate / (100 + rate))` and
+    `netAmount = total − taxAmount`, using the cart mock's total. An unknown
+    country gets the real 404 `VAT rate not found for country: <x>`, and an
+    empty one gets 400.
+  - `POST /orders`: logs every request in `receivedOrders` (`address`,
+    `idempotencyKey`), waits for its `ResponseHold`, then:
+    - replays the stored order for a repeated `Idempotency-Key` (201 +
+      `Idempotent-Replayed: true`, like the backend)
+    - answers 400 `Cart is empty` for an empty cart
+    - answers 409 `Insufficient stock for product <name>` when a line is
+      above a limit set with `limitStock(productId, available)` (cart kept)
+    - otherwise creates a `PENDING` order (ids from 50,001,
+      `reservationExpiresAt` now + 15 min, tax from the address country),
+      calls `cartMock.clear()` like the backend, and answers 201.
+  - `GET /orders/{id}` serves the created order (404 otherwise), and
+    `GET /orders/{id}/payments` serves `[]` for the payment page.
+  - `rejectAddress(errors)` answers the next POST once with a 400
+    `ValidationErrorsDto` (`{zipCode: '…'}`).
+  - `attemptKeys` records the `Idempotency-Key` of every order POST from
+    `page.on('request')`, so it also sees requests that `NetworkErrorMock`
+    aborted. `expectAttemptsToShareIdempotencyKey(n)` checks n attempts
+    with one shared key.
+  - `waitForTaxPreview()` / `waitForOrder()` poll and return what was
+    served, so specs assert served values instead of recomputing them.
+    `expectPlacedOrder(address)`, `expectOrdersToStay(n, ms)` (created) and
+    `expectReceivedOrdersToStay(n, ms)` (requests that reached the mock).
+  - `holdResponses()` holds order responses for the "Processing..." state.
+  - Failures register `apiErrorMock` / `networkErrorMock` on `orders` in
+    the test body, so they win over the mock (registered later).
+  - Verified: across all checkout HARs every `cart`, `products/{id}`,
+    `tax-preview` and `orders` response came from a mock (no `cf-ray`
+    header), while `users/me` and `currencies` were real.
 - **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
   registers before the test body.
   - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or

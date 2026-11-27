@@ -9,6 +9,7 @@ import { ProductGenerator } from '@/generators/productGenerator';
 import { readHar, sanitizeHar, writeHar } from '@/har/harFile';
 import { ApiErrorMock } from '@/mocks/apiErrorMock';
 import { CartMock } from '@/mocks/cartMock';
+import { CheckoutMock } from '@/mocks/checkoutMock';
 import { FakeProductDetailsMock } from '@/mocks/fakeProductDetailsMock';
 import { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
 import { HarReplayMock } from '@/mocks/harReplayMock';
@@ -16,9 +17,11 @@ import { LivePatchedProductDetailsMock } from '@/mocks/livePatchedProductDetails
 import { LivePatchedProductSearchMock } from '@/mocks/livePatchedProductSearchMock';
 import { NetworkErrorMock } from '@/mocks/networkErrorMock';
 import { CartPage } from '@/pages/cartPage';
+import { CheckoutPage } from '@/pages/checkoutPage';
 import { DashboardPage } from '@/pages/dashboardPage';
 import { ForgotPasswordPage } from '@/pages/forgotPasswordPage';
 import { LoginPage } from '@/pages/loginPage';
+import { PaymentPage } from '@/pages/paymentPage';
 import { ProductDetailsPage } from '@/pages/productDetailsPage';
 import { ProductsPage } from '@/pages/productsPage';
 import { RegisterPage } from '@/pages/registerPage';
@@ -30,7 +33,8 @@ export type Options = {
 
 const DETAILS_PRODUCT_ID_FLOOR = 10_000;
 
-const harUrlFilter = /\/api\/v1\/(products|cart|currencies|users\/me)(\/|\?|$)/;
+const harUrlFilter =
+  /\/api\/v1\/(products|cart|currencies|users\/me|orders)(\/|\?|$)/;
 
 type Fixtures = {
   loginPage: LoginPage;
@@ -38,6 +42,8 @@ type Fixtures = {
   productsPage: ProductsPage;
   productDetailsPage: ProductDetailsPage;
   cartPage: CartPage;
+  checkoutPage: CheckoutPage;
+  paymentPage: PaymentPage;
   forgotPasswordPage: ForgotPasswordPage;
   registerPage: RegisterPage;
   signInTraffic: SignInTraffic;
@@ -45,6 +51,7 @@ type Fixtures = {
   fakeProductSearchMock: FakeProductSearchMock;
   fakeProductDetailsMock: FakeProductDetailsMock;
   cartMock: CartMock;
+  checkoutMock: CheckoutMock;
   apiErrorMock: ApiErrorMock;
   networkErrorMock: NetworkErrorMock;
   harReplayMock: HarReplayMock;
@@ -123,6 +130,12 @@ export const test = base.extend<Options & Fixtures>({
   cartPage: async ({ page }, use) => {
     await use(new CartPage(page));
   },
+  checkoutPage: async ({ page }, use) => {
+    await use(new CheckoutPage(page));
+  },
+  paymentPage: async ({ page }, use) => {
+    await use(new PaymentPage(page));
+  },
   forgotPasswordPage: async ({ page }, use) => {
     await use(new ForgotPasswordPage(page));
   },
@@ -163,6 +176,12 @@ export const test = base.extend<Options & Fixtures>({
       ...fakeProductSearchMock.products,
       fakeProductDetailsMock.product,
     ]);
+    await mock.register();
+    await use(mock);
+    mock.releaseHeldResponses();
+  },
+  checkoutMock: async ({ page, userRole, cartMock }, use) => {
+    const mock = new CheckoutMock(page, getUser(userRole).username, cartMock);
     await mock.register();
     await use(mock);
     mock.releaseHeldResponses();

@@ -5,6 +5,8 @@ export const apiPaths = {
   currentUser: '/api/v1/users/me',
   tokenRefresh: '/api/v1/users/refresh',
   logout: '/api/v1/users/logout',
+  orders: '/api/v1/orders',
+  taxPreview: '/api/v1/cart/tax-preview',
 } as const;
 
 export const apiRoutes = {
@@ -17,6 +19,10 @@ export const apiRoutes = {
   currentUser: `**${apiPaths.currentUser}`,
   tokenRefresh: `**${apiPaths.tokenRefresh}`,
   logout: `**${apiPaths.logout}`,
+  orders: /\/api\/v1\/orders\/?(\?.*)?$/,
+  order: /\/api\/v1\/orders\/\d+\/?(\?.*)?$/,
+  orderPayments: /\/api\/v1\/orders\/\d+\/payments\/?(\?.*)?$/,
+  taxPreview: `**${apiPaths.taxPreview}**`,
 } as const;
 
 export type ApiEndpoint = keyof typeof apiRoutes;

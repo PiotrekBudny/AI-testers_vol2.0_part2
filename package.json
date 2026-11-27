@@ -9,6 +9,7 @@
     "test:products": "playwright test --project=products",
     "test:product-details": "playwright test --project=product-details",
     "test:cart": "playwright test --project=cart",
+    "test:checkout": "playwright test --project=checkout",
     "test:mocked": "playwright test --grep @mocked",
     "test:live": "playwright test --grep @live",
     "test:negative": "playwright test --grep @negative",

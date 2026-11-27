@@ -3,6 +3,7 @@ export const featureTags = [
   'products',
   'product-details',
   'cart',
+  'checkout',
 ] as const;
 
 export const dataTags = ['@mocked', '@live'] as const;

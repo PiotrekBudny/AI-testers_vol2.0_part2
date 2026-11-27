@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { expectToStay } from '@/assertions/settle';
+import { roundToCents } from '@/formatters/price';
 import type { Cart, CartItem } from '@/models/cart';
 import type { Product } from '@/models/product';
 import { apiRoutes } from './apiRoutes';
@@ -12,6 +13,7 @@ export class CartMock {
   readonly updatedItems: CartItem[] = [];
   private readonly items = new Map<number, number>();
   private readonly writeHold = new ResponseHold();
+  private readonly readHold = new ResponseHold();
 
   constructor(
     private readonly page: Page,
@@ -63,6 +65,22 @@ export class CartMock {
     };
   }
 
+  lines(): { product: Product; quantity: number }[] {
+    return [...this.items].map(([productId, quantity]) => {
+      const product = this.products().find(
+        (candidate) => candidate.id === productId,
+      );
+      if (product === undefined) {
+        throw new Error(unknownProduct(productId));
+      }
+      return { product, quantity };
+    });
+  }
+
+  clear(): void {
+    this.items.clear();
+  }
+
   private knows(productId: number): boolean {
     return this.products().some((product) => product.id === productId);
   }
@@ -110,19 +128,25 @@ export class CartMock {
     return this.writeHold.hold();
   }
 
+  holdReads(): () => void {
+    return this.readHold.hold();
+  }
+
   releaseHeldResponses(): void {
     this.writeHold.release();
+    this.readHold.release();
   }
 
   private async handleCart(route: Route): Promise<void> {
     const method = route.request().method();
     if (method === 'GET') {
+      await this.readHold.wait();
       await route.fulfill({ json: this.cart() });
       return;
     }
     if (method === 'DELETE') {
       await this.applyAfterHold(route, () => {
-        this.items.clear();
+        this.clear();
       });
       return;
     }
@@ -196,8 +220,4 @@ export class CartMock {
 
 function unknownProduct(productId: number): string {
   return `CartMock has no product ${productId}: add it to fakeProductSearchMock.products or use fakeProductDetailsMock.product`;
-}
-
-function roundToCents(amount: number): number {
-  return Math.round(amount * 100) / 100;
 }

@@ -11,7 +11,7 @@ and every other endpoint keeps working, mocked or live.
 
 | Piece | File | Role |
 | --- | --- | --- |
-| `apiRoutes`, `ApiEndpoint` | `src/mocks/apiRoutes.ts` | The only place with endpoint globs. `ApiEndpoint` is its key type (`productSearch`, `productDetails`, `productReviews`, `cart`, `cartItems`, `cartItem`, `currentUser`, `tokenRefresh`, `logout`). `apiPaths` in the same file holds the plain paths. |
+| `apiRoutes`, `ApiEndpoint` | `src/mocks/apiRoutes.ts` | The only place with endpoint globs. `ApiEndpoint` is its key type (`productSearch`, `productDetails`, `productReviews`, `cart`, `cartItems`, `cartItem`, `currentUser`, `tokenRefresh`, `logout`, `orders`, `order`, `orderPayments`, `taxPreview`). `apiPaths` in the same file holds the plain paths. |
 | `ApiErrorMock` | `src/mocks/apiErrorMock.ts` | `respondWithError(endpoint, status, { times?, message? })`, `rejectSession()`, `expectRequestCount(endpoint, n)`, `expectRequestCountToStay(endpoint, n, ms)`, `waitForRequestCount(endpoint, atLeast)`, `requestCount(endpoint)`. |
 | `NetworkErrorMock` | `src/mocks/networkErrorMock.ts` | `abort(endpoint, { times?, errorCode? })`, `abortedCount`, `waitForAbortedCount(endpoint, atLeast)`, `expectAbortedCountToStay(endpoint, n, ms)`. |
 | `apiErrorMock`, `networkErrorMock` fixtures | `src/fixtures/test.ts` | Not `auto`. Request them only in tests that need an error. |
