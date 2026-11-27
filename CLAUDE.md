@@ -148,8 +148,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - `npm test` runs Playwright (every project, so the whole suite once).
   `npm run test:<category>` runs one category (`test:auth`,
   `test:products`, `test:product-details`, `test:cart`, `test:checkout`,
-  `test:mocked`,
-  `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
+  `test:admin` (all four admin areas), `test:admin-dashboard`,
+  `test:admin-products`, `test:admin-orders`, `test:admin-inventory`,
+  `test:mocked`, `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it

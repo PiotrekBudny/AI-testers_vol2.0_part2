@@ -143,9 +143,17 @@ and traps (for example an endpoint that reads the real backend state).
 1. `npm run typecheck` and `npm run check`.
 2. `npx playwright test --project=<feature> --repeat-each=5` (flakiness).
 3. `CI=1 npx playwright test --project=<feature>`.
-4. Safety: scan the tests' `network.har` attachments and tabulate real vs
-   mocked responses per endpoint (a real response has a `cf-ray` header).
-   Every write and every faked read must be mocked; `users/me` and
-   `currencies` are real. Add the endpoint to `harUrlFilter` first if it
-   isn't recorded.
+4. Safety: scan the tests' `network.har` files from a local run (none are
+   written on CI) and tabulate each endpoint in three groups. "No `cf-ray`"
+   alone doesn't mean mocked, because a request with no response has no
+   headers at all:
+   - **real**: has a `cf-ray` header
+   - **no response**: status 0 or below. Allowed only for an abort the
+     test caused on purpose (`networkErrorMock`, `loseNextResponse`).
+   - **mocked**: has a status and only `content-type` and
+     `content-length` headers (or none, for a 204)
+
+   Every write and every faked read must be mocked. `users/me` and
+   `currencies` show as real, which proves the check can see real
+   traffic. Add the endpoint to `harUrlFilter` first if it isn't recorded.
 5. `npm test`, and update the verified counts in CLAUDE.md.
