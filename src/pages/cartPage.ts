@@ -1,16 +1,18 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { CartItemRow } from '@/components/cartItemRow';
+import { type ConfirmAnswer, NativeDialogs } from '@/components/nativeDialogs';
 import { formatUsd } from '@/formatters/price';
-import type { Product } from '@/models/product';
+import type { CartLine } from '@/models/cart';
 import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
-const CLEAR_CONFIRMATION = 'Are you sure you want to clear your cart?';
+const CLEAR_CONFIRMATION = 'confirm: Are you sure you want to clear your cart?';
 
 export class CartPage extends BasePage {
   readonly url = '/cart';
   readonly title = 'Cart – Awesome Testing';
-  private lastConfirmation: string | undefined;
+
+  private readonly dialogs: NativeDialogs;
 
   readonly heading: Locator;
   readonly empty: Locator;
@@ -23,6 +25,7 @@ export class CartPage extends BasePage {
   constructor(page: Page) {
     super(page);
 
+    this.dialogs = new NativeDialogs(page);
     this.heading = page.getByTestId('cart-title');
     this.empty = page.getByTestId('cart-empty');
     this.itemRows = page.getByTestId('cart-items-list').getByRole('row');
@@ -47,13 +50,9 @@ export class CartPage extends BasePage {
     return new CartItemRow(this.page, productId);
   }
 
-  async clearCart(answer: 'accept' | 'dismiss'): Promise<void> {
-    const dialogShown = this.page.waitForEvent('dialog');
-    const clicked = this.buttons.clear.click();
-    const dialog = await dialogShown;
-    this.lastConfirmation = `${dialog.type()}: ${dialog.message()}`;
-    await (answer === 'accept' ? dialog.accept() : dialog.dismiss());
-    await clicked;
+  async clearCart(answer: ConfirmAnswer): Promise<void> {
+    this.dialogs.answerConfirmsWith(answer);
+    await this.buttons.clear.click();
   }
 
   async continueShopping(): Promise<void> {
@@ -65,9 +64,7 @@ export class CartPage extends BasePage {
   }
 
   async expectClearConfirmationAsked(): Promise<void> {
-    await expect
-      .poll(() => this.lastConfirmation, { message: 'clear cart confirmation' })
-      .toBe(`confirm: ${CLEAR_CONFIRMATION}`);
+    await this.dialogs.expectShown([CLEAR_CONFIRMATION]);
   }
 
   async expectEmpty(): Promise<void> {
@@ -79,9 +76,7 @@ export class CartPage extends BasePage {
     await this.expectCartCount(0);
   }
 
-  async expectItems(
-    lines: { product: Product; quantity: number }[],
-  ): Promise<void> {
+  async expectItems(lines: CartLine[]): Promise<void> {
     await expect(this.empty).toBeHidden();
     await expect(this.itemRows).toHaveCount(lines.length);
     for (const { product, quantity } of lines) {

@@ -1,8 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import type { Cart, CartItem } from '@/models/cart';
+import { roundToCents } from '@/mocks/support/money';
+import { ResponseHold } from '@/mocks/support/responseHold';
+import type { Cart, CartItem, CartLine } from '@/models/cart';
 import type { Product } from '@/models/product';
-import { apiRoutes } from './apiRoutes';
 
 const CART_ITEM_NOT_FOUND = { message: 'Cart item not found' };
 
@@ -10,9 +12,8 @@ export class CartMock {
   readonly addedItems: CartItem[] = [];
   readonly updatedItems: CartItem[] = [];
   private readonly items = new Map<number, number>();
-  private held: Promise<void> = Promise.resolve();
-  private releaseHeld: () => void = () => {};
-  private holding = false;
+  private readonly writeHold = new ResponseHold();
+  private readonly readHold = new ResponseHold();
 
   constructor(
     private readonly page: Page,
@@ -64,6 +65,22 @@ export class CartMock {
     };
   }
 
+  lines(): CartLine[] {
+    return [...this.items].map(([productId, quantity]) => {
+      const product = this.products().find(
+        (candidate) => candidate.id === productId,
+      );
+      if (product === undefined) {
+        throw new Error(unknownProduct(productId));
+      }
+      return { product, quantity };
+    });
+  }
+
+  clear(): void {
+    this.items.clear();
+  }
+
   private knows(productId: number): boolean {
     return this.products().some((product) => product.id === productId);
   }
@@ -74,6 +91,14 @@ export class CartMock {
       throw new Error(unknownProduct(productId));
     }
     return price;
+  }
+
+  seedLines(lines: CartLine[]): void {
+    this.seed(lines.map(toCartItem));
+  }
+
+  async expectCartLines(lines: CartLine[]): Promise<void> {
+    await this.expectCartItems(lines.map(toCartItem));
   }
 
   async expectCartItems(items: CartItem[]): Promise<void> {
@@ -108,35 +133,28 @@ export class CartMock {
   }
 
   holdResponses(): () => void {
-    if (this.holding) {
-      return this.releaseHeld;
-    }
-    this.holding = true;
-    let resolveHeld: () => void = () => {};
-    this.held = new Promise<void>((resolve) => {
-      resolveHeld = resolve;
-    });
-    this.releaseHeld = () => {
-      this.holding = false;
-      this.held = Promise.resolve();
-      resolveHeld();
-    };
-    return this.releaseHeld;
+    return this.writeHold.hold();
+  }
+
+  holdReads(): () => void {
+    return this.readHold.hold();
   }
 
   releaseHeldResponses(): void {
-    this.releaseHeld();
+    this.writeHold.release();
+    this.readHold.release();
   }
 
   private async handleCart(route: Route): Promise<void> {
     const method = route.request().method();
     if (method === 'GET') {
+      await this.readHold.wait();
       await route.fulfill({ json: this.cart() });
       return;
     }
     if (method === 'DELETE') {
       await this.applyAfterHold(route, () => {
-        this.items.clear();
+        this.clear();
       });
       return;
     }
@@ -199,7 +217,7 @@ export class CartMock {
     route: Route,
     change: () => 'applied' | 'not found' | undefined,
   ): Promise<void> {
-    await this.held;
+    await this.writeHold.wait();
     if (change() === 'not found') {
       await route.fulfill({ status: 404, json: CART_ITEM_NOT_FOUND });
       return;
@@ -212,6 +230,6 @@ function unknownProduct(productId: number): string {
   return `CartMock has no product ${productId}: add it to fakeProductSearchMock.products or use fakeProductDetailsMock.product`;
 }
 
-function roundToCents(amount: number): number {
-  return Math.round(amount * 100) / 100;
+function toCartItem({ product, quantity }: CartLine): CartItem {
+  return { productId: product.id, quantity };
 }

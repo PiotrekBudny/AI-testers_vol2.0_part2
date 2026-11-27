@@ -17,7 +17,7 @@ MCP follows the same rule.
 | `AuthApi.signIn(user, baseURL)`     | `src/api/authApi.ts`     | Sends `POST /api/v1/users/signin` with `{username, password}` and returns an `ApiSession` (`user`, `token`, `refreshToken`, `expiresAt`). Throws on a non-2xx status, on `mfaRequired`, or when the tokens are missing. Never puts the password in errors. |
 | `globalSetup` | `global-setup.ts` | Creates a private temporary directory for the run, passes its path to workers, and removes it during teardown. |
 | `savedAuthStateFor(role, baseURL)` | `src/api/savedAuthState.ts` | Signs in on demand and saves state once per role and origin. A lock and atomic rename let workers share the file. |
-| `storageState` override | `src/fixtures/test.ts` | Selects the saved file for `userRole`, which defaults to client. Each test gets a new context from that file. |
+| `storageState` override | `src/fixtures/session.ts` | Selects the saved file for `userRole`, which defaults to client. Each test gets a new context from that file. |
 
 App facts:
 
@@ -85,7 +85,7 @@ See the **mock-api-errors** skill.
 
 `baseURL` is typed `string | undefined` but is always set by
 `playwright.config.ts`. Narrow it with a check that throws, the way
-`requireBaseURL` in `src/fixtures/test.ts` does. Never fall back to `''`.
+`requireBaseURL` in `src/fixtures/session.ts` does. Never fall back to `''`.
 
 ## A new user role
 

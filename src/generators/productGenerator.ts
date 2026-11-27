@@ -1,6 +1,8 @@
 import { en, Faker } from '@faker-js/faker';
 import { ProductCategory } from '@/enums/productCategory';
-import type { Product } from '@/models/product';
+import type { CartLine } from '@/models/cart';
+import type { Product, ProductDetails } from '@/models/product';
+import { fromBackendTimestamp, toBackendTimestamp } from './timestamps';
 
 const PRODUCT_IMAGES = [
   '/images/iphone.png',
@@ -14,12 +16,6 @@ const PRODUCT_IMAGES = [
 ] as const;
 
 const MAX_REVIEWS = 50;
-
-const toBackendTimestamp = (date: Date): string =>
-  date.toISOString().replace('Z', '');
-
-const fromBackendTimestamp = (timestamp: string): Date =>
-  new Date(`${timestamp}Z`);
 
 export class ProductGenerator {
   private readonly faker: Faker;
@@ -90,6 +86,21 @@ export class ProductGenerator {
     return { products, first, second };
   }
 
+  generateCart(
+    quantities: number[],
+    overrides: Omit<Partial<Product>, 'id'> = {},
+  ): { products: Product[]; lines: CartLine[]; first: Product } {
+    const { products, first } = this.generateCatalogue(
+      quantities.length,
+      overrides,
+    );
+    const lines = products.flatMap((product, index) => {
+      const quantity = quantities[index];
+      return quantity === undefined ? [] : [{ product, quantity }];
+    });
+    return { products, lines, first };
+  }
+
   private defaultReviewCount({ averageRating }: Partial<Product>): number {
     if (averageRating === null) {
       return 0;
@@ -116,4 +127,12 @@ export class ProductGenerator {
     const sum = stars.reduce((total, star) => total + star, 0);
     return Math.round((sum * 10) / reviewCount) / 10;
   }
+}
+
+export function toProductDetails({
+  averageRating: _averageRating,
+  reviewCount: _reviewCount,
+  ...details
+}: Product): ProductDetails {
+  return details;
 }

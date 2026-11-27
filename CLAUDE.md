@@ -13,8 +13,9 @@ the answer into the relevant section.
 Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
 (`page.route`), plus a few tests against the live API. Current scope:
-the login form, the product list (search, errors, network errors), the
-product details page and the cart.
+the login and registration forms, the product list (search, errors, network errors), the
+product details page, the cart and checkout (up to the payment page), and
+the admin dashboard, products, orders and inventory pages.
 
 - API docs (Swagger UI): <https://awesome.byst.re/swagger-ui/index.html>;
   raw spec at `https://awesome.byst.re/v3/api-docs` (fetch with `curl`).
@@ -27,66 +28,109 @@ product details page and the cart.
 
 ```
 src/
-  builders/productSearchResponseBuilder.ts  full search response (paging + facets)
+  components/adminSectionNav.ts             AdminSectionNav (tabs on every /admin page)
+  components/adminOrderRow.ts               AdminOrderRow (one admin-order-row-{id})
+  components/adminProductRow.ts             AdminProductRow (one admin-product-row-{id})
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
+  components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
+  components/inventoryInspector.ts          InventoryInspector (selected item, adjustment form, movements)
+  components/inventoryLabels.ts             STOCK_STATUS_LABELS (stock status texts)
+  components/inventoryRow.ts                InventoryRow (one inventory-row-{id})
+  components/nativeDialogs.ts               NativeDialogs (answers native confirm/alert, logs them)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
+  api/endpoints.ts                          apiPaths (endpoint paths), apiRoutes (route globs), ApiEndpoint
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
   api/savedAuthState.ts                     creates and shares one saved session per role and origin
+  config/mockIds.ts                         mock id ranges (SAFE_MOCK_ID_FLOOR, details range, UNKNOWN_ID), requireMockIds
   config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
-  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
+  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS ("nothing more sent"), SERVER_ERROR_ATTEMPTS, LOAD_ERROR_TIMEOUT_MS, RETRY_WAIT_TIMEOUT_MS
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
-  generators/productGenerator.ts            faker-based Product generator
-  formatters/price.ts                       formatUsd: en-US USD price text as the app shows it
+  generators/shopDataGenerator.ts           fake product details, orders and inventory items (admin specs, checkout orders)
+  generators/addressGenerator.ts            faker-based Address (valid ZIP, country Poland)
+  generators/productGenerator.ts            faker-based Product generator, generateCart, toProductDetails
+  generators/timestamps.ts                  backend timestamp format, fixedTimestamp, BASE_TIMESTAMP
+  formatters/price.ts                       formatUsd (en-US USD text as the app shows it)
+  models/inventory.ts                       InventoryItem, InventoryMovement, InventoryAdjustment
+  models/pageDto.ts                         PageDto<T>, the backend page wrapper
   models/product.ts                         Product (one search hit), ProductDetails
   models/auth.ts                            LoginRequest, LoginResponse, ApiSession
-  models/cart.ts                            Cart, CartItem (cart API shapes used so far)
+  models/cart.ts                            Cart, CartItem, CartLine ({product, quantity})
+  models/fieldErrors.ts                     FieldErrors<F>: messages keyed by field
+  models/order.ts                           Address, Order, OrderItem, TaxPreview, VatRate, AddressFieldErrors
   models/productSearchResponse.ts           response, facets, price range types
+  pages/admin{Dashboard,Products,Orders,OrderDetails,Inventory}Page.ts  admin views
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
   pages/cartPage.ts                         CartPage (/cart)
+  pages/checkoutPage.ts                     CheckoutPage (/checkout)
+  pages/paymentPage.ts                      PaymentPage (/orders/{id}/pay, landing check only)
   pages/dashboardPage.ts                    DashboardPage (/ after login)
   pages/forgotPasswordPage.ts               ForgotPasswordPage (/forgot-password, url + title only)
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productDetailsPage.ts               ProductDetailsPage (/products/{id}, open(product))
   pages/productsPage.ts                     ProductsPage (/products)
-  pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  pages/registerPage.ts                     RegisterPage (/register form, errors, pending state)
   assertions/settle.ts                      expectToStay: poll, wait a window, check again
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
   assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
-  fixtures/test.ts                          test/expect with page object + mock fixtures
+  fixtures/test.ts                          test/expect: mergeTests of the fixture modules below
+  fixtures/session.ts                       userRole option, storageState (API login), requireBaseURL
+  fixtures/har.ts                           harRecording option, HAR recording + sanitizing
+  fixtures/safety.ts                        tagPolicy, adminWriteGuard, signupGuard (auto)
+  fixtures/pages.ts                         one fixture per page object
+  fixtures/mocks.ts                         mocks, traffic assertions, twoLineCart, endpoint ownership
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
+  mocks/adminCatalogMock.ts                 fake GET /products + DELETE /products/{id}
+  mocks/adminInventoryMock.ts               fake /admin/inventory list, item, movements, adjustments
+  mocks/adminOrdersMock.ts                  fake /orders/admin, order reads, status and cancel
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
-  mocks/apiRoutes.ts                        apiPaths (endpoint paths), route globs, ApiEndpoint
   mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
+  mocks/checkoutMock.ts                     fake checkout on top of CartMock: tax preview, POST /orders, order + payments reads
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
-  mocks/livePatchedMock.ts                  generic LivePatchedMock<T>: route.fetch + transform + fulfill
   mocks/livePatchedProductDetailsMock.ts    real GET /products/{id}, patched (stockQuantity)
   mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
   mocks/networkErrorMock.ts                 aborts requests (no response) and counts attempts
+  mocks/signupMock.ts                       fake POST /users/signup (201), logs bodies, holds responses
   mocks/recorded/productSearch.json         committed recording of GET /api/v1/products/search
+  mocks/support/endpointOwners.ts           EndpointOwners: one mock per endpoint in a test
+  mocks/support/livePatchedMock.ts          generic LivePatchedMock<T>: route.fetch + transform + fulfill
+  mocks/support/money.ts                    roundToCents
+  mocks/support/paging.ts                   pageOf: a PageDto slice with totals
+  mocks/support/pathId.ts                   numeric id from a request URL path
+  mocks/support/productSearchResponseBuilder.ts  full search response (paging + facets)
+  mocks/support/responseHold.ts             ResponseHold: hold mocked responses until released
   types/locators.ts                         Locators<K> type for locator groups
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
   auth.spec.ts                              saved API session accepted by the app; logged-out redirect
   adminAuth.spec.ts                         saved admin API session accepted by the app
+  adminAccess.spec.ts                       a client opening the four admin pages lands on / (live)
+  adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
+  adminProducts.spec.ts                     /admin/products: list, empty, delete confirm/dismiss/pending/409, loading, load error
+  adminOrders.spec.ts                       /admin/orders + details: paging, filter, status update, rejection, cancel, load error
+  adminInventory.spec.ts                    /admin/inventory: filters, adjustments, validation, conflict, lost reply, errors
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
+  registerPage.spec.ts                      /register (empty storageState): validation, mocked signup, username taken
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
   productsPageNetworkErrors.spec.ts         /products: connection drop, recovery after 2 aborts
   cartPage.spec.ts                          /cart: add/update/remove, seeded, two products, Update rules, clear, links
   cartPageApiErrors.spec.ts                 /cart negative: PUT 500, DELETE 500, dropped connection on update
+  checkoutPage.spec.ts                      /checkout: order placed, no-VAT country, empty cart, loading, pending, validation, back
+  checkoutPageApiErrors.spec.ts             /checkout negative: 409 conflict, 500, server field errors, dropped connection + retry
   productDetailsPage.spec.ts                /products/{id}: details, 404, cart 500, out of stock, clicks
   productsPageHar.spec.ts                   /products: replay of the productSearch recording
   productsPageLivePatched.spec.ts           /products: real search, first product patched
   productDetailsPageLivePatched.spec.ts     /products/{id}: real product, stockQuantity patched to 0
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
+merge.config.ts                             reporters for merging CI shard blob reports
 global-setup.ts                             private temporary directory for saved sessions
 ```
 
@@ -117,33 +161,64 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   version, with no `^` or `~`.
 - `npm test` runs Playwright (every project, so the whole suite once).
   `npm run test:<category>` runs one category (`test:auth`,
-  `test:products`, `test:product-details`, `test:cart`, `test:mocked`,
-  `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
+  `test:products`, `test:product-details`, `test:cart`, `test:checkout`,
+  `test:admin` (all four admin areas), `test:admin-dashboard`,
+  `test:admin-products`, `test:admin-orders`, `test:admin-inventory`,
+  `test:register`, `test:mocked`, `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
   forbids classes with only static members, so use instance methods).
   `biome.json` excludes `.claude/skills/**/SKILL.md`, because Biome's
   Markdown formatter breaks YAML frontmatter (it inserts a blank line
-  after the opening `---` and turns a leading `+` into a list).
+  after the opening `---` and turns a leading `+` into a list). It also
+  excludes `.claude/skills/**/mcp-*.js`: those files are a bare
+  `async (page) => {…}` that `browser_run_code_unsafe` wraps as
+  `await (<code>)(page)`, so the trailing `;` Biome adds is a syntax
+  error.
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
-  on any branch through `workflow_dispatch`. It runs `biome ci .` and
-  typecheck, then Playwright on Chromium, and uploads `playwright-report/`.
-- After the tests, unless the run was cancelled, the "Annotate test
-  results" step runs `.github/scripts/annotate-playwright-results.cjs`.
+  on any branch through `workflow_dispatch`. Its jobs (actions:
+  `checkout@v7`, `setup-node@v7`, `upload-artifact@v7`,
+  `download-artifact@v8`):
+  - `Lint & typecheck`: `biome ci .` and typecheck.
+  - `Playwright shard 1/4` … `4/4`: a matrix (`fail-fast: false`) that
+    runs `npm test -- --shard=i/4` on Chromium, following
+    <https://playwright.dev/docs/test-sharding>. `fullyParallel` is on,
+    so tests (not files) are split evenly (a quarter of the suite each). Each
+    shard runs `global-setup.ts` and signs in on its own. Each uploads
+    its `blob-report/` as `blob-report-<i>` (kept 1 day).
+  - `Playwright tests` (the merge job): `needs` the shards and runs
+    unless the run was cancelled, even when shards failed or were
+    skipped. It downloads every `blob-report-*` into `all-blob-reports/`,
+    runs `npx playwright merge-reports --config=merge.config.ts
+    ./all-blob-reports` (html into `playwright-report/`, json into
+    `test-results/results.json`), annotates, uploads
+    `playwright-report/` (kept 30 days), and finally **fails when the
+    shard jobs' result isn't `success`**. It keeps the old job name, so
+    the ruleset's required check still matches, and a skipped required
+    check would count as passing, which is why it never gets skipped.
+  - To change the shard count, edit both `shardIndex` and `shardTotal`
+    in the matrix.
+  - Verified locally: four `CI=1 … --shard=i/4 --reporter=blob` runs
+    merged with `merge.config.ts` into one report (47 tests at the time).
+- In the merge job, unless the run was cancelled, the "Annotate test
+  results" step runs `.github/scripts/annotate-playwright-results.cjs`
+  on the merged JSON, so there is one annotation for all shards.
   It reads the totals in `test-results/results.json` and writes one
   annotation on the run, titled "Playwright results", like
   `4 tests: 4 passed, 0 failed, 0 flaky, 0 skipped (13.3 s)`:
   - `error` level when any test failed or the JSON report has run errors
     (including global setup failures before tests start). Otherwise,
     `warning` when any test was flaky and `notice` for a clean run.
-  - A `warning` when the file is missing (the tests never got to run).
+  - A `warning` when the file is missing (no blob reports arrived, for
+    example because lint failed and the shards were skipped).
   - It takes an optional results file path for trying it out locally.
-- The GitHub ruleset "main: require CI" (Settings → Rules) makes both
-  jobs, `Lint & typecheck` and `Playwright tests`, required checks for
-  merging into `main`, and the PR branch must be up to date with `main`.
+- The GitHub ruleset "main: require CI" (Settings → Rules) makes
+  `Lint & typecheck` and `Playwright tests` (the merge job, not the
+  shards) required checks for merging into `main`, and the PR branch
+  must be up to date with `main`.
   - Required checks match job `name:`s exactly, so renaming a job in
     `ci.yml` means updating the ruleset too, or PRs wait forever.
   - Repository admins can bypass it, which is the only way to push to
@@ -198,6 +273,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   tests and in Playwright MCP, including the live-write rules.
   **mock-api-errors** covers negative scenarios with `ApiErrorMock`
   (4xx/5xx, the 401 refresh rule, exploring errors through MCP).
+  **cover-page-with-mocks** is the whole workflow for a new page: spec,
+  safe MCP exploration (its `mcp-safety-net.js` blocks every non-GET
+  API call), a stateful mock that composes the existing ones, page
+  objects, tags and the scenario checklist (reference: checkout).
 
 ## Playwright config
 
@@ -212,15 +291,17 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
-- On CI: `retries: 2`, `forbidOnly`, and the `list`, `html` and `json`
-  reporters (`list` prints each test in the job log). `json` writes `test-results/results.json`, which feeds the CI
-  results annotation. Locally:
+- On CI: `retries: 2`, `forbidOnly`, and the `list` and `blob` reporters
+  (`list` prints each test in the shard's job log, `blob` writes
+  `blob-report/` for merging). `merge.config.ts` holds the reporters of
+  the merged report: `html` and `json` (`test-results/results.json`,
+  which feeds the CI results annotation). Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
   locally. Desktop Chrome is set in the top-level `use`, and the projects
   split the suite by category (see Test categories).
-- HAR recording is the `harRecording` option fixture, set in the config
+- HAR recording is the `harRecording` option fixture (`src/fixtures/har.ts`), set in the config
   to `!isCI`, so it's **on locally only**. The config is typed
   `defineConfig<Options>` to accept it.
   - The fixture overrides the built-in `contextOptions` with `recordHar`,
@@ -230,7 +311,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     opened, and when the sanitized HAR has no entries, for example login
     form tests, whose only call, `users/signin`, is not on the allowlist).
   - `harUrlFilter` is an **allowlist**: `/api/v1/` `products`, `cart`,
-    `currencies` and `users/me` only. Auth endpoints (sign-in, a token
+    `currencies`, `users/me`, `orders` and `admin/inventory` only (order addresses in tests
+    are generated, never real). Auth endpoints (sign-in, a token
     refresh, register) are never recorded, so passwords and refresh tokens
     stay out. Add an endpoint there when a test needs it in the HAR.
   - After the context closes, the fixture runs `sanitizeHar` on the file
@@ -271,13 +353,16 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   tags. Describes are **never nested**, so a file with several groups (for
   example `tests/loginPage.spec.ts`) has several top-level describes.
 - Every test carries exactly **one feature tag**, set on its describe:
-  `@auth`, `@products`, `@product-details` or `@cart`.
+  `@auth`, `@products`, `@product-details`, `@cart`, `@checkout`,
+  `@admin-dashboard`, `@admin-products`, `@admin-orders`,
+  `@admin-inventory` or `@register` (`--grep @admin-`, or `npm run test:admin`, runs all
+  four admin areas; each also has a `test:admin-<area>` script).
 - It also carries exactly **one data tag**. `@live`: the test checks real
   backend data. `@mocked`: the endpoints under test are mocked or
   replayed, **but authenticated tests still use real API login and page
   bootstrap (`users/me`, `cart`, `currencies`)**. `@mocked` and `@live`
   together cover the whole suite.
-- The auto fixture `tagPolicy` (`src/fixtures/test.ts`, rules in
+- The auto fixture `tagPolicy` (`src/fixtures/safety.ts`, rules in
   `src/config/testTags.ts`) fails any test that doesn't have exactly one
   feature tag and exactly one data tag, naming what's missing. Verified
   with a throwaway spec: two feature tags and a missing data tag both fail.
@@ -297,8 +382,15 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `--grep "@cart.*@negative"`. A new feature tag needs an entry in
   `featureTags` in `src/config/testTags.ts` (shared by the config and
   `tagPolicy`) and a `test:<feature>` script.
-- Verified: 10 auth + 17 products + 7 product-details + 12 cart + 0
-  untagged = 46 tests, the same as the whole suite.
+- Verified: 15 auth + 17 products + 7 product-details + 12 cart + 12
+  checkout + 6 admin-dashboard + 8 admin-products + 7 admin-orders + 10
+  admin-inventory + 3 register + 0 untagged = 97 tests, the same as the
+  whole suite.
+  The 31 admin tests also passed `--repeat-each=5` and a `CI=1` run. In
+  their HARs, every write and every products, orders and admin inventory
+  request was answered by a mock. A HAR entry only counts as mocked when
+  it has a status and no headers beyond `content-type` and
+  `content-length`: a request with no response also has no `cf-ray`.
 
 ## Page objects
 
@@ -422,7 +514,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `links.cart` and `links.profile` (leads to `/profile`) show only when
   logged in, as do the desktop menu links, selects and logout button
   (not modelled; no test uses them). Mapped for the desktop layout as a
-  client; admins may see more links.
+  client. Admins also get `desktop-menu-admin` (`navigation.adminLink`)
+  and a warehouse link (not modelled).
 - Products page (`/products`, "Products – Awesome Testing"), modelled as
   `ProductsPage`:
   - Every product card repeats the same test ids (`product-item`,
@@ -613,6 +706,196 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     page) shows `totalItems` as text (units, not lines), empty at 0. Its
     `aria-label` reads `Cart, 1 item`. `BasePage.cartCounter` /
     `expectCartCount(n)`.
+- Checkout page (`/checkout`, "Checkout – Awesome Testing"), modelled as
+  `CheckoutPage` with one `CheckoutItemRow` per line. Mapped through MCP
+  with a fake cart and every non-GET blocked, so no real order or cart
+  change was made:
+  - **Requests on load:** `users/me`, `cart` (several times),
+    `currencies`, then `GET /products/{id}` per cart line. While
+    `GET /cart` is pending, only `checkout-loading` "Loading checkout..."
+    renders.
+  - **Empty cart:** `/checkout` redirects to `/cart` (no toast).
+  - **Summary:** rows `checkout-item-{id}` with `-name-`, `-price-`,
+    `-quantity-`, `-total-` and `-image-`; `checkout-items-value` (units),
+    `checkout-total-value` (summary total) and `checkout-total-amount`
+    (form total). **`checkout-total` is a duplicated test id** (on both
+    totals' wrappers), so never locate by it. `checkout-back-button`
+    "← Back to Cart" leads to `/cart`.
+  - **Form** (`checkout-form`): plain text inputs with no native
+    validation, `checkout-{street,city,state,zip,country}-input`, with
+    errors in `checkout-<same>-error`. The JSON fields are `street`,
+    `city`, `state`, `zipCode`, `country` (`AddressDto`). The `zipCode`
+    field's test ids say `zip`.
+  - **Client validation** runs on submit, then again as you type, and
+    sends nothing while a field is invalid: `Street address is required`,
+    `City is required`, `State is required`, `ZIP code is required`,
+    `Country is required` (whitespace-only counts as empty), and
+    `Invalid postal/zip code format` (the API pattern
+    `^(?:[0-9]{2}(?:-[0-9]{3})?|[0-9]{5}(?:-[0-9]{4})?)$`). Invalid inputs
+    get `aria-invalid="true"`. `CheckoutPage.expectValidationErrors`.
+  - **VAT preview:** the country input sends a debounced
+    `GET /api/v1/cart/tax-preview?country=<name or code>` (one request per
+    typed word). `checkout-tax-label` reads `Includes VAT 23% (PL)` and
+    `checkout-tax-amount` the amount. A 404 (no rate) shows
+    `checkout-tax-unavailable`: `No VAT rate for "<x>"; the order is
+    placed without VAT.` **The real endpoint reads the real cart**, so
+    with a mocked cart it reports $0.00; tests mock it (`CheckoutMock`).
+  - **Place Order** sends `POST /api/v1/orders` with the address and an
+    `Idempotency-Key: <uuid>` header. While pending, the button reads
+    `Processing...` and is disabled (the inputs stay enabled), and forced
+    clicks or `dispatchEvent` send nothing more.
+  - **Success (201 `OrderDto`)** navigates to `/orders/{id}/pay`, with no
+    toast. The backend empties the cart, so the counter goes to 0.
+  - **Failures** are never retried (one request). The address stays, the
+    button returns to `Place Order`, enabled, and there is no toast:
+    - 409: `checkout-availability-error` (`role="alert"`) with a fixed
+      text, "Some items are no longer available in the requested quantity.
+      Your cart was preserved; review it before trying again."
+    - 400/404/500/503 with `{message}`: `checkout-submit-error`
+      (`role="alert"`) shows the backend `message`.
+    - 400 with field keys (`ValidationErrorsDto`): the messages go to the
+      field errors, with `aria-invalid`.
+    - Dropped connection: `checkout-submit-error` "Failed to create order.
+      Please try again." **Submitting again reuses the same
+      `Idempotency-Key`**, so a retry can't create a second order.
+- Register page (`/register`, "Create account – Awesome Testing"),
+  modelled as `RegisterPage`. Public: a logged-in user is redirected to
+  `/`. Mapped through MCP with every non-GET blocked, so no account was
+  created:
+  - **No API call on load.** Submit sends
+    `POST /api/v1/users/signup` with `UserRegisterDto`
+    `{username, email, password, firstName, lastName}`, exactly as typed
+    (the email case is kept). The `firstName`/`lastName` test ids say
+    `firstname`/`lastname`: `register-<field>-input` and
+    `register-<field>-error` (`role="alert"`), plus
+    `register-submit-button` "Create account", `register-submit-error`
+    and `register-login-link`.
+  - **Client validation** on submit sends nothing and sets
+    `aria-invalid`: `… is required` for each field (whitespace-only names
+    count as empty), `Username must be at least 4 characters`, `Username
+    may only contain letters, digits, dots, underscores and hyphens`,
+    `Invalid email format`, `Password must be at least 8 characters`,
+    `First/Last name must be at least 4 characters`, `… must be at most
+    255 characters`. Gaps compared with the contract: a whitespace-only
+    password and a password over 72 bytes pass the client (not tested).
+  - **Pending:** "Creating account...", disabled; forced clicks send
+    nothing more.
+  - **201:** lands on `/login` with toast `Success` / "Registration
+    successful! You can now log in.", an empty login form and no tokens.
+  - **Failures** are not retried; the values stay and the button is
+    enabled again:
+    - 400 `{message}` containing "username" and "already in use": toast
+      `Error` / "Username already exists". The same for email: "Email
+      already exists". The backend text isn't shown.
+    - 400 keyed by field: inline field errors with `aria-invalid`, no toast.
+    - Any other error (500, 429): the backend `message` in
+      `register-submit-error`.
+- Payment page (`/orders/{id}/pay`, "Pay for order – Awesome Testing"),
+  modelled as `PaymentPage` for the landing check only:
+  `expectToShowOrder(order)` checks the URL, title, `payment-title`
+  "Pay for order #{id}", `payment-order-total` and
+  `payment-order-vat-label` ("incl. VAT 23% (PL)") with `payment-order-vat`;
+  for an order without VAT both are absent (verified with a mocked order).
+  It loads `GET /orders/{id}` and `GET /orders/{orderId}/payments` (an
+  array) and shows a `reservation-countdown`. The card form
+  (`payment-card-*`, `payment-submit`) isn't modelled.
+- Admin pages, common facts (mapped through MCP with every write faked):
+  - Specs set `test.use({ userRole: 'admin' })`, seed ids of 90,000 or
+    more, and request the mock for **every** read the page makes.
+  - **Never assert dates or times.** The app converts server-local times
+    to the browser's time zone and formats them for the machine's locale.
+  - A GET answered 500 makes 4 attempts (`SERVER_ERROR_ATTEMPTS`) before
+    the error shows (`LOAD_ERROR_TIMEOUT_MS`, both in
+    `src/config/timing.ts`).
+  - The section nav has 8 tabs. `AdminSectionNav` models the four covered
+    ones (overview, products, orders, inventory), not coupons, reviews,
+    returns or purchasing.
+  - A client opening any of the four pages is redirected to `/`, with no
+    admin API call and no toast, and has no `desktop-menu-admin` link
+    (`tests/adminAccess.spec.ts`, real client session).
+- Admin dashboard (`/admin`, "Admin Dashboard – Awesome Testing"),
+  `AdminDashboardPage`:
+  - Reads `GET /products` and `GET /orders/admin?page=N&size=50` for
+    **every** page up to `totalPages`.
+  - Total orders is `totalElements`, pending counts PENDING orders, and
+    revenue sums `totalAmount` over all pages except CANCELLED.
+  - Recent orders are the 5 newest by `createdAt` (CANCELLED included).
+    Low stock lists products with `stockQuantity` below 5 (5 excluded),
+    in API order.
+  - A failed read leaves the other half working: an error box with "Try
+    again", "—" for the affected metrics and an "unavailable" text.
+  - Quirk: while loading it shows zeros, `$0.00` and "No orders found".
+    The empty-shop test therefore can't tell "empty" from "still
+    loading"; it only waits for the mocked reads.
+  - The "Commerce settings" links (gift cards, VAT rates, currencies,
+    payments, webhooks) aren't modelled.
+- Admin products (`/admin/products`, "Manage Products – Awesome Testing"),
+  `AdminProductsPage` with one `AdminProductRow` per product:
+  - Reads `GET /api/v1/products` (an array, shown in API order). The stock
+    cell is a bare number, and `admin-product-image-<id>` is missing when
+    `imageUrl` is null. Images have `alt=""`.
+  - Delete opens a **native** `confirm()`. On 204 the list is refetched,
+    with no toast. A failure raises a **native** `alert()` with a fixed
+    text (the backend message isn't shown), keeps the row and isn't
+    retried. So a failed delete raises two dialogs: the page object
+    answers every dialog through `NativeDialogs` (one persistent
+    `page.on('dialog')` that logs them; `CartPage.clearCart` uses it too).
+    An answer that fails (dialog already handled, page closed) is recorded,
+    and `expectShown` reports it instead of an unhandled rejection.
+  - While pending, that row's button reads "Deleting..." and is disabled.
+  - A dropped connection on delete isn't covered by a test.
+  - The CSV panel (`catalog-csv*`) isn't modelled; never click it.
+- Admin orders (`/admin/orders`, "Manage Orders – Awesome Testing"),
+  `AdminOrdersPage` with `AdminOrderRow`, and the order details page
+  (`/orders/{id}`, "Order details – Awesome Testing"),
+  `AdminOrderDetailsPage` (`open(id)`, or `expectToShowOrder(order)`
+  after following a link):
+  - The list reads `GET /orders/admin?page=0&size=10[&status=X]`, in API
+    order. The status filter (`ALL` sends no `status`) returns to page 0,
+    and the URL doesn't change. Statuses are uppercase in `textContent`.
+  - Details reads the order, `/payments` and `/shipments`. With the
+    mock's 404 it says the order wasn't handed to the warehouse, which
+    says nothing about the real shipment data. Shipments and tracking
+    aren't covered.
+  - Status update: choose in `order-details-status-select`, then "Update"
+    (disabled while unchanged) sends `PUT /orders/{id}/status` with a
+    bare JSON string. Pending shows "Updating..." with the button and
+    select disabled. A failure shows an `Error` toast, keeps the badge
+    and the chosen value, and isn't retried.
+  - Cancel is a custom dialog (`order-cancel-dialog`), not a native one.
+    Cancel and "Expire reservation now" show for PENDING only. **Never
+    click expire.**
+  - Quirks: the select offers all five statuses even on DELIVERED and
+    just-cancelled orders, so the UI sends changes the backend rules
+    reject. The backend allows cancelling a PAID order, but the UI has no
+    button for it. A DELIVERED order shows a customer-style "Request a
+    return" button (`order-return-open`, not modelled).
+- Admin inventory (`/admin/inventory`, "Inventory – Awesome Testing"; a
+  selected item is at `/admin/inventory/{id}`, same title),
+  `AdminInventoryPage` with `InventoryRow` and `InventoryInspector`:
+  - The list reads
+    `GET /admin/inventory?page=0&size=20[&search&category&status]&lowStockThreshold=5`.
+    Search queries on every keystroke, so check the **last** query. A
+    filter change returns to page 0, and the URL doesn't change. Table
+    cells have no test ids (`getByRole('cell')` inside the row).
+  - Selecting a row reads the item (with `lowStockThreshold`) and
+    `/movements?page=0&size=20`. `inventory-movements-refresh` isn't
+    modelled. Movement rows read "ADMIN ADJUSTMENT" (uppercase in
+    `textContent`), `+3` or `-5` (ASCII hyphen), then "reason · date".
+  - Apply is disabled for an empty, zero, decimal or non-numeric delta
+    and a blank reason. The UI allows removing more than the stock.
+  - Adjusting sends `POST /admin/inventory/{id}/adjustments`
+    `{delta, reason, requestId}`. Success refetches, clears the form and
+    shows no toast; the next adjustment gets a new `requestId`. Pending
+    reads "Applying…" (U+2026).
+  - A failure keeps the form and isn't retried: 409 has its own conflict
+    text, everything else the same generic one. **The `requestId` is kept
+    until a success**, also after editing delta or reason.
+  - Quirks: after a lost reply, an edited retry gets a conflict that
+    advises retrying "the same adjustment", although the first one was
+    saved. While loading and after a list error the page still shows
+    "0 products" and "Page 0 of 0". One match reads "1 products". The
+    inspector keeps an item that a filter removed from the list.
 
 ## Mocking conventions
 
@@ -647,7 +930,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 
   `HarReplayMock` isn't tied to product search: `serve(name)` replays any
   recording.
-  Route globs live in `apiRoutes` (`src/mocks/apiRoutes.ts`), not on a
+  Route globs live in `apiRoutes` (`src/api/endpoints.ts`), not on a
   mock class, so the mocks don't depend on each other. Endpoint paths
   live once in `apiPaths` in the same file. `AuthApi`, `SignInTraffic`
   and `ProductSearchTraffic` use them, and the string globs are built
@@ -695,7 +978,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - **Live patched mocks** use the docs' "modify API responses" pattern:
   `route.fetch()` the real response, apply `register(transform)`, then
   `route.fulfill({ response, json })`. The logic lives in the generic
-  `LivePatchedMock<T>` (`src/mocks/livePatchedMock.ts`, constructed with
+  `LivePatchedMock<T>` (`src/mocks/support/livePatchedMock.ts`, constructed with
   an `ApiEndpoint`), with `lastServed()`, `lastReal()` and the async
   `expectServedWithoutErrors(n, settleMs = 1000)`. It waits until `n`
   responses were served **or failed**, so a real-API error fails at once
@@ -784,15 +1067,67 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
     checks that nothing more arrives within `ms`.
   - `holdResponses()` holds every write until the returned function is
-    called. Calling it again while holding returns the same release.
+    called. Calling it again while holding returns the same release
+    (the logic is `ResponseHold`, `src/mocks/support/responseHold.ts`, shared
+    with other stateful mocks).
     The change is applied only on release, so a `GET /cart` during
     the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test
     never leaves a route handler hanging.
+  - `holdReads()` holds every `GET /cart` the same way (a second
+    `ResponseHold`), for the "Loading checkout..." state. Set it before
+    `goto`; teardown releases it too.
+  - For other mocks that build on the cart: `lines()` returns the items
+    joined with their products (`{product, quantity}`), and `clear()`
+    empties the cart (`DELETE /cart` uses it too).
+- **`CheckoutMock`** (fixture `checkoutMock`, depends on `cartMock`) fakes
+  checkout **on top of** `CartMock`. It never routes `/cart` or
+  `/cart/items` itself; it reads and changes the cart only through
+  `cartMock.cart()`, `lines()` and `clear()`. So a checkout test gets the
+  whole fake stack (search, details, cart, checkout) by requesting it.
+  - `GET /cart/tax-preview?country=`: resolves a country name or code
+    (case-insensitive) in its VAT table (PL 23, DE 19, US 0, copied from
+    the live `/vat-rates`; `setVatRate(rate)` adds one). Amounts are
+    `taxAmount = round2(total × rate / (100 + rate))` and
+    `netAmount = total − taxAmount`, using the cart mock's total. An unknown
+    country gets the real 404 `VAT rate not found for country: <x>`, and an
+    empty one gets 400.
+  - `POST /orders`: logs every request in `receivedOrders` (`address`,
+    `idempotencyKey`), waits for its `ResponseHold`, then:
+    - replays the stored order for a repeated `Idempotency-Key` (201 +
+      `Idempotent-Replayed: true`, like the backend)
+    - answers 400 `Cart is empty` for an empty cart
+    - answers 409 `Insufficient stock for product <name>` when a line is
+      above a limit set with `limitStock(productId, available)` (cart kept)
+    - otherwise creates a `PENDING` order (ids from 90,001, above `SAFE_MOCK_ID_FLOOR`,
+      `reservationExpiresAt` now + 15 min, tax from the address country),
+      calls `cartMock.clear()` like the backend, and answers 201.
+  - `GET /orders/{id}` serves the created order (404 otherwise), and
+    `GET /orders/{id}/payments` serves `[]` for the payment page.
+  - `rejectAddress(errors)` answers the next POST once with a 400
+    `ValidationErrorsDto` (`{zipCode: '…'}`). Other methods on `/orders`
+    don't use it up. A cart line whose product the mocks don't know makes
+    the order POST and the tax preview answer 500 with `CartMock`'s message
+    instead of hanging.
+  - `attemptKeys` records the `Idempotency-Key` of every order POST from
+    `page.on('request')`, so it also sees requests that `NetworkErrorMock`
+    aborted. `expectAttemptsToShareIdempotencyKey(n)` checks n attempts
+    with one shared key.
+  - `waitForTaxPreview()` / `waitForOrder()` poll and return what was
+    served, so specs assert served values instead of recomputing them.
+    `expectPlacedOrder(address)`, `expectOrdersToStay(n, ms)` (created) and
+    `expectReceivedOrdersToStay(n, ms)` (requests that reached the mock).
+  - `holdResponses()` holds order responses for the "Processing..." state.
+  - Failures register `apiErrorMock` / `networkErrorMock` on `orders` in
+    the test body, so they win over the mock (registered later).
+  - Verified: across all checkout HARs every `cart`, `products/{id}`,
+    `tax-preview` and `orders` response came from a mock (no `cf-ray`
+    header), while `users/me` and `currencies` were real.
 - **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
   registers before the test body.
-  - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or
-    more so it never clashes with the search mock's ids) for
+  - Serves `product` (generated, `stockQuantity` 5-50, `id` from
+    `randomDetailsProductId()`, 10,000-89,999, so it never clashes with the
+    search mock's ids, the safe floor or `UNKNOWN_ID`) for
     `GET /api/v1/products/{id}` (also with a trailing `/` or a query),
     minus the rating fields. Unknown ids get 404 `Product not found`.
     `alsoServe(products)` adds more products by id. Only the `cartMock`
@@ -803,6 +1138,87 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `updateProduct(changes)` uses `Object.assign`.
   - The `productDetails` and `productReviews` routes in `apiRoutes` are
     RegExps (`page.route` accepts both), so they never match `search`.
+- **Fixture modules.** `src/fixtures/test.ts` only combines the modules
+  with `mergeTests`, so specs keep importing `test`/`expect` from it.
+  `session.ts` holds the role and saved login, `har.ts` the HAR recording,
+  `safety.ts` the auto fixtures (`tagPolicy` and both guards, built on one
+  `blockUnmockedRequests` helper), `pages.ts` the page objects and
+  `mocks.ts` the mocks and traffic assertions. A new page object or mock
+  gets its fixture in the matching module.
+- **One mock per endpoint.** Every mock fixture claims the `apiRoutes`
+  endpoints it serves (`EndpointOwners`, fixture `endpointOwners`).
+  Requesting two mocks that serve the same endpoint from separate data fails
+  at once and names both. Examples: `checkoutMock` and `adminOrdersMock`
+  (`order`), `adminCatalogMock` and `fakeProductDetailsMock`
+  (`productDetails`), a fake and a live patched mock of the same endpoint.
+  `harReplayMock.serve()` claims the endpoint whose `apiRoutes` glob the
+  recording replays (a recording with any other glob fails). `apiErrorMock`
+  and `networkErrorMock` don't claim: they override on purpose. Verified
+  with a throwaway spec.
+- **Shared test data and helpers.**
+  - `twoLineCart` (fixture): two generated products (stock 10) in the fake
+    search, seeded in the cart as quantities 2 and 1. It returns
+    `{products, lines, first}`. Built on
+    `ProductGenerator.generateCart(quantities, overrides)` and
+    `cartMock.seedLines(lines)` / `expectCartLines(lines)`.
+  - Not-found cases use `UNKNOWN_ID`. Fixed backend times come from
+    `fixedTimestamp(day)` / `BASE_TIMESTAMP`.
+  - Paged responses use `pageOf`, and `toProductDetails` strips the rating
+    fields.
+- **Folder rules.**
+  - `src/api/endpoints.ts` is shared by mocks, assertions and `AuthApi`, so
+    it isn't under `mocks/`.
+  - `src/mocks/` holds only mocks, with their building blocks in
+    `src/mocks/support/`.
+  - `src/components/` holds both app-wide parts (navigation, toast, admin
+    section nav, native dialogs) and parts of one page (rows, inventory
+    inspector). Each is scoped to its root test id.
+- **Signup safety.** No test creates a real account. The auto fixture
+  `signupGuard` (every test) routes the signup endpoint on the
+  **context**, so it's in place before any page opens. Page routes win,
+  so `SignupMock` (fixture `signupMock`: 201, `receivedRequests`,
+  `holdResponses()`, `expectReceived`, `expectReceivedToStay`) and
+  `apiErrorMock` answer first. A request that no page route fulfilled
+  (no mock, or a mock that fell back) gets 418 and fails the test in
+  teardown, naming it. Verified with a throwaway spec whose page route
+  fell back. Signup carries a password, so it's not in `harUrlFilter`.
+- **Admin safety.** Admin tests never write to the live shop. Two layers:
+  - The auto fixture `adminWriteGuard` (only for `userRole: 'admin'`)
+    routes `**/api/**` on the **context**. Page routes always win over
+    context routes, so every mock and error mock takes priority. A non-GET
+    that no mock handled gets 418 and **fails the test** in teardown,
+    naming it. Verified for both leak paths: an unmocked DELETE, and a
+    POST that a registered mock passed on with `fallback()`. It doesn't
+    cover GETs, so request the mock for every read a test relies on.
+  - Mocked admin ids are 90,000 or more (`SAFE_MOCK_ID_FLOOR`; the
+    mocks' `seed()` throws below it), so even a leaked request can't hit
+    real products (1-8) or orders. Build data with `ShopDataGenerator`.
+- **`AdminCatalogMock`** (fixture `adminCatalogMock`): `GET /products`
+  (the whole array) and `GET`/`DELETE /products/{id}`. `holdReads()`,
+  `holdDeletes()`, `deletedIds`, `expectDeletedIds(ToStay)`,
+  `expectProductIds`, `waitForListReads(n)` (served list reads). Used by
+  the admin products and dashboard pages. Page objects never import from
+  `src/mocks/`; specs wait on the mock instead.
+- **`AdminOrdersMock`** (fixture `adminOrdersMock`): `GET /orders/admin`
+  (`status`, `page`; `pageSize` caps the page so a few orders span
+  several), `GET /orders/{id}`, payments `[]`, any other order
+  sub-resource 404 (so none reaches the server), `PUT .../status` (body
+  is a bare JSON string) and `POST .../cancel`. It follows the backend
+  rules: statuses only move forward (skips allowed), DELIVERED and
+  CANCELLED are terminal, CANCELLED only from PENDING or PAID, the same
+  status is a no-op, otherwise 400. `expectLastListQuery` and
+  `expectListQueriesToStay` check what the list asked for. Requesting
+  it together with `checkoutMock` fails (see "One mock per endpoint").
+- **`AdminInventoryMock`** (fixture `adminInventoryMock`): list (search,
+  category, status, `pageSize`), item, movements (newest first; an
+  unknown id gets 404 for the item but an empty movements page, as the app
+  saw live) and adjustments. A repeated `requestId` replays the movement
+  (201) when product, delta and reason match, otherwise 409; stock below
+  zero is 409. `loseNextResponse()` affects only the next adjustment
+  request: if it succeeds, the change is applied and the reply dropped; if
+  it is a replay or a 409, it's answered normally. `attempts` comes from `page.on('request')`, so it also counts
+  requests an error mock answered. The stock status rule (0 out, 5 or
+  less low) is a mock assumption.
 - **`ApiErrorMock`** (fixture `apiErrorMock`, not `auto`): makes any
   `apiRoutes` endpoint answer with an error status
   (`respondWithError(endpoint, status, { times?, message? })`), with a
@@ -835,7 +1251,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `withProducts` takes _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
   - `build()` slices `content` and derives the totals and facets from all
-    products. With no products set, it generates 8.
+    products. With no products set, it serves an empty page.
 - Category is typed as the `ProductCategory` enum on purpose. If the backend
   adds categories, update the enum.
 
@@ -846,13 +1262,17 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   (`CLIENT_*` / `ADMIN_*`: username, password, display name). On CI they
   come from repository secrets and variables.
 - Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
-  admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
-  modelled in code yet: no `warehouse`/`admin` menu links in
-  `NavigationBar`, no admin page objects; `adminAuth.spec.ts` only checks the saved session. The
-  **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
-  mapped test ids, the admin-only endpoints and the agreed rules for admin
-  tests (separate `tests/admin*.spec.ts`, live writes only on self-created
-  prefixed data with cleanup, MCP writes only with the user's OK).
+  admin in Playwright MCP via `mcp-login.mjs admin`. The dashboard,
+  products, orders and inventory pages have mocked coverage. Not covered:
+  product add and edit forms, CSV import and export, "Expire reservation
+  now", order shipments, the other admin sections, `/warehouse` and any
+  live admin write. The **admin-login** skill
+  (`.claude/skills/admin-login/SKILL.md`) has the admin-only endpoints and
+  the agreed rules for admin tests (separate `tests/admin*.spec.ts`, live
+  writes only on self-created prefixed data with cleanup, MCP writes only
+  with the user's OK).
+- `AdminInventoryMock` assumes "low stock" means 5 or less. The real
+  boundary is unverified, so no test checks it.
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked

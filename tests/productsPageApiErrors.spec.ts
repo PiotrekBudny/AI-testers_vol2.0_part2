@@ -1,4 +1,7 @@
-import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
+import {
+  NO_MORE_REQUESTS_WINDOW_MS,
+  SERVER_ERROR_ATTEMPTS,
+} from '@/config/timing';
 import { test } from '@/fixtures/test';
 
 test.describe('Products page API errors', {
@@ -33,7 +36,7 @@ test.describe('Products page API errors', {
     await productsPage.expectLoadError();
     await apiErrorMock.expectRequestCountToStay(
       'productSearch',
-      4,
+      SERVER_ERROR_ATTEMPTS,
       NO_MORE_REQUESTS_WINDOW_MS,
     );
   });

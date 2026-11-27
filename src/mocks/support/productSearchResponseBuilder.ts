@@ -1,16 +1,15 @@
-import { ProductGenerator } from '@/generators/productGenerator';
 import type { Product } from '@/models/product';
 import type {
   CategoryFacet,
   ProductSearchFacets,
   ProductSearchResponse,
 } from '@/models/productSearchResponse';
+import { pageOf } from './paging';
 
 const DEFAULT_PAGE_SIZE = 12;
-const DEFAULT_PRODUCT_COUNT = 8;
 
 export class ProductSearchResponseBuilder {
-  private products: Product[] | undefined;
+  private products: Product[] = [];
   private pageNumber = 0;
   private pageSize = DEFAULT_PAGE_SIZE;
 
@@ -30,18 +29,9 @@ export class ProductSearchResponseBuilder {
   }
 
   build(): ProductSearchResponse {
-    const products =
-      this.products ??
-      new ProductGenerator().generateProducts(DEFAULT_PRODUCT_COUNT);
-    const start = this.pageNumber * this.pageSize;
-
     return {
-      content: products.slice(start, start + this.pageSize),
-      pageNumber: this.pageNumber,
-      pageSize: this.pageSize,
-      totalElements: products.length,
-      totalPages: Math.ceil(products.length / this.pageSize),
-      facets: buildFacets(products),
+      ...pageOf(this.products, this.pageNumber, this.pageSize),
+      facets: buildFacets(this.products),
     };
   }
 }

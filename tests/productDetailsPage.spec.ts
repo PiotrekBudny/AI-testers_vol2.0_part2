@@ -1,7 +1,6 @@
+import { UNKNOWN_ID } from '@/config/mockIds';
 import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
-
-const UNKNOWN_PRODUCT_ID = 98_765;
 
 test.describe('Product details page', {
   tag: ['@product-details', '@mocked'],
@@ -27,7 +26,7 @@ test.describe('Product details page', {
   }) => {
     await apiErrorMock.respondWithError('productDetails', 404);
 
-    await productDetailsPage.openById(UNKNOWN_PRODUCT_ID);
+    await productDetailsPage.openById(UNKNOWN_ID);
 
     await productDetailsPage.expectNotFound();
     await apiErrorMock.expectRequestCountToStay(

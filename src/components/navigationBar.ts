@@ -3,6 +3,7 @@ import type { Locators } from '@/types/locators';
 
 export class NavigationBar {
   readonly root: Locator;
+  readonly adminLink: Locator;
   readonly links: Locators<'login' | 'register' | 'cart' | 'profile'>;
 
   constructor(page: Page) {
@@ -14,6 +15,13 @@ export class NavigationBar {
       cart: this.root.getByTestId('desktop-cart-icon'),
       profile: this.root.getByTestId('username-profile-link'),
     };
+
+    this.adminLink = this.root.getByTestId('desktop-menu-admin');
+  }
+
+  async expectNoAdminLink(): Promise<void> {
+    await expect(this.links.profile).toBeVisible();
+    await expect(this.adminLink).toHaveCount(0);
   }
 
   async expectLoggedOut(): Promise<void> {

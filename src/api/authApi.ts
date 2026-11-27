@@ -1,6 +1,6 @@
 import type { APIRequestContext } from '@playwright/test';
+import { apiPaths } from '@/api/endpoints';
 import type { User } from '@/config/users';
-import { apiPaths } from '@/mocks/apiRoutes';
 import type { ApiSession, LoginRequest, LoginResponse } from '@/models/auth';
 
 export class AuthApi {

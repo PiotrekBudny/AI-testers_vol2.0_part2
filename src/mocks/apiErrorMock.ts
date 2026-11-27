@@ -1,6 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { type ApiEndpoint, apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { type ApiEndpoint, apiRoutes } from './apiRoutes';
+import { RETRY_WAIT_TIMEOUT_MS } from '@/config/timing';
 
 type ApiErrorStatus = 400 | 401 | 403 | 404 | 409 | 422 | 500 | 502 | 503;
 
@@ -51,7 +52,7 @@ export class ApiErrorMock {
     await expect
       .poll(() => this.requestCount(endpoint), {
         message: `waiting for ${atLeast} mocked requests to ${endpoint}`,
-        timeout: 10_000,
+        timeout: RETRY_WAIT_TIMEOUT_MS,
       })
       .toBeGreaterThanOrEqual(atLeast);
   }
