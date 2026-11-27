@@ -95,6 +95,7 @@ hars/                                       raw HARs from the har-to-mock skill,
 tests/                                      Playwright specs (testDir)
   auth.spec.ts                              saved API session accepted by the app; logged-out redirect
   adminAuth.spec.ts                         saved admin API session accepted by the app
+  adminAccess.spec.ts                       a client opening the four admin pages lands on / (live)
   adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
   adminProducts.spec.ts                     /admin/products: list, empty, delete confirm/dismiss/pending/409, loading, load error
   adminOrders.spec.ts                       /admin/orders + details: paging, filter, status update, rejection, cancel, load error
