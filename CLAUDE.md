@@ -29,6 +29,7 @@ product details page, the cart and checkout (up to the payment page).
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
   components/adminSectionNav.ts             AdminSectionNav (tabs on every /admin page)
+  components/adminProductRow.ts             AdminProductRow (one admin-product-row-{id})
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
@@ -92,6 +93,7 @@ tests/                                      Playwright specs (testDir)
   auth.spec.ts                              saved API session accepted by the app; logged-out redirect
   adminAuth.spec.ts                         saved admin API session accepted by the app
   adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
+  adminProducts.spec.ts                     /admin/products: list, empty, delete confirm/dismiss/pending/409, loading, load error
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
@@ -764,6 +766,19 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     loading"; it only waits for the mocked reads.
   - The "Commerce settings" links (gift cards, VAT rates, currencies,
     payments, webhooks) aren't modelled.
+- Admin products (`/admin/products`, "Manage Products – Awesome Testing"),
+  `AdminProductsPage` with one `AdminProductRow` per product:
+  - Reads `GET /api/v1/products` (an array, shown in API order). The stock
+    cell is a bare number, and `admin-product-image-<id>` is missing when
+    `imageUrl` is null. Images have `alt=""`.
+  - Delete opens a **native** `confirm()`. On 204 the list is refetched,
+    with no toast. A failure raises a **native** `alert()` with a fixed
+    text (the backend message isn't shown), keeps the row and isn't
+    retried. So a failed delete raises two dialogs: the page object
+    answers every dialog with one persistent `page.on('dialog')`.
+  - While pending, that row's button reads "Deleting..." and is disabled.
+  - A dropped connection on delete isn't covered by a test.
+  - The CSV panel (`catalog-csv*`) isn't modelled; never click it.
 
 ## Mocking conventions
 
