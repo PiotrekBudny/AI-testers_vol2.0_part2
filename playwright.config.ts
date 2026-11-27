@@ -14,11 +14,7 @@ export default defineConfig<Options>({
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   reporter: isCI
-    ? [
-        ['list'],
-        ['html'],
-        ['json', { outputFile: 'test-results/results.json' }],
-      ]
+    ? [['list'], ['blob']]
     : [['list'], ['html', { open: 'never' }]],
   use: {
     ...devices['Desktop Chrome'],

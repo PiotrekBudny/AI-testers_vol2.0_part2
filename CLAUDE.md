@@ -87,6 +87,7 @@ tests/                                      Playwright specs (testDir)
   productDetailsPageLivePatched.spec.ts     /products/{id}: real product, stockQuantity patched to 0
   productsPageLive.spec.ts                  /products against the real API, no mocks (HAR source)
 playwright.config.ts
+merge.config.ts                             reporters for merging CI shard blob reports
 global-setup.ts                             private temporary directory for saved sessions
 ```
 
@@ -129,21 +130,46 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
-  on any branch through `workflow_dispatch`. It runs `biome ci .` and
-  typecheck, then Playwright on Chromium, and uploads `playwright-report/`.
-- After the tests, unless the run was cancelled, the "Annotate test
-  results" step runs `.github/scripts/annotate-playwright-results.cjs`.
+  on any branch through `workflow_dispatch`. Its jobs (actions:
+  `checkout@v7`, `setup-node@v7`, `upload-artifact@v7`,
+  `download-artifact@v8`):
+  - `Lint & typecheck`: `biome ci .` and typecheck.
+  - `Playwright shard 1/4` … `4/4`: a matrix (`fail-fast: false`) that
+    runs `npm test -- --shard=i/4` on Chromium, following
+    <https://playwright.dev/docs/test-sharding>. `fullyParallel` is on,
+    so tests (not files) are split evenly (12/12/12/11 at 47 tests). Each
+    shard runs `global-setup.ts` and signs in on its own. Each uploads
+    its `blob-report/` as `blob-report-<i>` (kept 1 day).
+  - `Playwright tests` (the merge job): `needs` the shards and runs
+    unless the run was cancelled, even when shards failed or were
+    skipped. It downloads every `blob-report-*` into `all-blob-reports/`,
+    runs `npx playwright merge-reports --config=merge.config.ts
+    ./all-blob-reports` (html into `playwright-report/`, json into
+    `test-results/results.json`), annotates, uploads
+    `playwright-report/` (kept 30 days), and finally **fails when the
+    shard jobs' result isn't `success`**. It keeps the old job name, so
+    the ruleset's required check still matches, and a skipped required
+    check would count as passing, which is why it never gets skipped.
+  - To change the shard count, edit both `shardIndex` and `shardTotal`
+    in the matrix.
+  - Verified locally: four `CI=1 … --shard=i/4 --reporter=blob` runs
+    merged with `merge.config.ts` into one report of 47 tests.
+- In the merge job, unless the run was cancelled, the "Annotate test
+  results" step runs `.github/scripts/annotate-playwright-results.cjs`
+  on the merged JSON, so there is one annotation for all shards.
   It reads the totals in `test-results/results.json` and writes one
   annotation on the run, titled "Playwright results", like
   `4 tests: 4 passed, 0 failed, 0 flaky, 0 skipped (13.3 s)`:
   - `error` level when any test failed or the JSON report has run errors
     (including global setup failures before tests start). Otherwise,
     `warning` when any test was flaky and `notice` for a clean run.
-  - A `warning` when the file is missing (the tests never got to run).
+  - A `warning` when the file is missing (no blob reports arrived, for
+    example because lint failed and the shards were skipped).
   - It takes an optional results file path for trying it out locally.
-- The GitHub ruleset "main: require CI" (Settings → Rules) makes both
-  jobs, `Lint & typecheck` and `Playwright tests`, required checks for
-  merging into `main`, and the PR branch must be up to date with `main`.
+- The GitHub ruleset "main: require CI" (Settings → Rules) makes
+  `Lint & typecheck` and `Playwright tests` (the merge job, not the
+  shards) required checks for merging into `main`, and the PR branch
+  must be up to date with `main`.
   - Required checks match job `name:`s exactly, so renaming a job in
     `ci.yml` means updating the ruleset too, or PRs wait forever.
   - Repository admins can bypass it, which is the only way to push to
@@ -212,9 +238,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   specs that never log in run without them. Use
   `loginPage.loginAs(getUser('client'))` in login form tests.
 - `baseURL` is `process.env.BASE_URL`, falling back to `https://aitesters.byst.re`.
-- On CI: `retries: 2`, `forbidOnly`, and the `list`, `html` and `json`
-  reporters (`list` prints each test in the job log). `json` writes `test-results/results.json`, which feeds the CI
-  results annotation. Locally:
+- On CI: `retries: 2`, `forbidOnly`, and the `list` and `blob` reporters
+  (`list` prints each test in the shard's job log, `blob` writes
+  `blob-report/` for merging). `merge.config.ts` holds the reporters of
+  the merged report: `html` and `json` (`test-results/results.json`,
+  which feeds the CI results annotation). Locally:
   `list` plus `html` with `open: 'never'`, because an auto-opened report
   would block the pre-commit hook.
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
