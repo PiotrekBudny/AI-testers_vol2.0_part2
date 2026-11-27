@@ -68,6 +68,7 @@ src/
   mocks/livePatchedProductDetailsMock.ts    real GET /products/{id}, patched (stockQuantity)
   mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
   mocks/networkErrorMock.ts                 aborts requests (no response) and counts attempts
+  mocks/responseHold.ts                     ResponseHold: hold mocked responses until released
   mocks/recorded/productSearch.json         committed recording of GET /api/v1/products/search
   types/locators.ts                         Locators<K> type for locator groups
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
@@ -812,7 +813,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     "exactly N", use `expectAddedItemsToStay(items, ms)`, which also
     checks that nothing more arrives within `ms`.
   - `holdResponses()` holds every write until the returned function is
-    called. Calling it again while holding returns the same release.
+    called. Calling it again while holding returns the same release
+    (the logic is `ResponseHold`, `src/mocks/responseHold.ts`, shared
+    with other stateful mocks).
     The change is applied only on release, so a `GET /cart` during
     the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
     sleeping. Fixture teardown releases held responses, so a failing test

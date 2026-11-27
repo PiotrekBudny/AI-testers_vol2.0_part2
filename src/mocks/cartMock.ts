@@ -3,6 +3,7 @@ import { expectToStay } from '@/assertions/settle';
 import type { Cart, CartItem } from '@/models/cart';
 import type { Product } from '@/models/product';
 import { apiRoutes } from './apiRoutes';
+import { ResponseHold } from './responseHold';
 
 const CART_ITEM_NOT_FOUND = { message: 'Cart item not found' };
 
@@ -10,9 +11,7 @@ export class CartMock {
   readonly addedItems: CartItem[] = [];
   readonly updatedItems: CartItem[] = [];
   private readonly items = new Map<number, number>();
-  private held: Promise<void> = Promise.resolve();
-  private releaseHeld: () => void = () => {};
-  private holding = false;
+  private readonly writeHold = new ResponseHold();
 
   constructor(
     private readonly page: Page,
@@ -108,24 +107,11 @@ export class CartMock {
   }
 
   holdResponses(): () => void {
-    if (this.holding) {
-      return this.releaseHeld;
-    }
-    this.holding = true;
-    let resolveHeld: () => void = () => {};
-    this.held = new Promise<void>((resolve) => {
-      resolveHeld = resolve;
-    });
-    this.releaseHeld = () => {
-      this.holding = false;
-      this.held = Promise.resolve();
-      resolveHeld();
-    };
-    return this.releaseHeld;
+    return this.writeHold.hold();
   }
 
   releaseHeldResponses(): void {
-    this.releaseHeld();
+    this.writeHold.release();
   }
 
   private async handleCart(route: Route): Promise<void> {
@@ -199,7 +185,7 @@ export class CartMock {
     route: Route,
     change: () => 'applied' | 'not found' | undefined,
   ): Promise<void> {
-    await this.held;
+    await this.writeHold.wait();
     if (change() === 'not found') {
       await route.fulfill({ status: 404, json: CART_ITEM_NOT_FOUND });
       return;
