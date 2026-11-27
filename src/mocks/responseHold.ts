@@ -9,13 +9,17 @@ export class ResponseHold {
     }
     this.holding = true;
     let resolveHeld: () => void = () => {};
-    this.held = new Promise<void>((resolve) => {
+    const held = new Promise<void>((resolve) => {
       resolveHeld = resolve;
     });
+    this.held = held;
     this.releaseHeld = () => {
+      resolveHeld();
+      if (this.held !== held) {
+        return;
+      }
       this.holding = false;
       this.held = Promise.resolve();
-      resolveHeld();
     };
     return this.releaseHeld;
   }

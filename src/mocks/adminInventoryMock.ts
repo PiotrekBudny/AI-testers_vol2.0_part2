@@ -233,6 +233,8 @@ export class AdminInventoryMock {
     const productId = pathId(route.request().url(), 1);
     const adjustment = route.request().postDataJSON() as InventoryAdjustment;
     await this.adjustmentHold.wait();
+    const losingResponse = this.losingNextResponse;
+    this.losingNextResponse = false;
     const earlier = this.movements.find(
       (movement) => movement.requestId === adjustment.requestId,
     );
@@ -260,8 +262,7 @@ export class AdminInventoryMock {
       return;
     }
     const movement = this.apply(item, adjustment, quantityAfter);
-    if (this.losingNextResponse) {
-      this.losingNextResponse = false;
+    if (losingResponse) {
       await route.abort('connectionreset');
       return;
     }

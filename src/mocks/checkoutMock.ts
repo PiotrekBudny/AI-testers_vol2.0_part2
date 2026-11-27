@@ -1,5 +1,6 @@
 import { expect, type Page, type Request, type Route } from '@playwright/test';
 import { expectToStay } from '@/assertions/settle';
+import { ADMIN_MOCK_ID_FLOOR } from '@/config/mockIds';
 import { roundToCents } from '@/formatters/price';
 import type {
   Address,
@@ -18,7 +19,7 @@ const DEFAULT_VAT_RATES: VatRate[] = [
   { countryCode: 'US', countryName: 'United States', rate: 0 },
 ];
 
-const ORDER_ID_FLOOR = 50_000;
+const ORDER_ID_FLOOR = ADMIN_MOCK_ID_FLOOR;
 const RESERVATION_MS = 15 * 60_000;
 
 type ReceivedOrder = {

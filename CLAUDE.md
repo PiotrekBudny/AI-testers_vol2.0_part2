@@ -747,7 +747,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   modelled as `PaymentPage` for the landing check only:
   `expectToShowOrder(order)` checks the URL, title, `payment-title`
   "Pay for order #{id}", `payment-order-total` and
-  `payment-order-vat-label` ("incl. VAT 23% (PL)") with `payment-order-vat`.
+  `payment-order-vat-label` ("incl. VAT 23% (PL)") with `payment-order-vat`;
+  for an order without VAT both are absent (verified with a mocked order).
   It loads `GET /orders/{id}` and `GET /orders/{orderId}/payments` (an
   array) and shows a `reservation-countdown`. The card form
   (`payment-card-*`, `payment-submit`) isn't modelled.
@@ -1048,7 +1049,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     - answers 400 `Cart is empty` for an empty cart
     - answers 409 `Insufficient stock for product <name>` when a line is
       above a limit set with `limitStock(productId, available)` (cart kept)
-    - otherwise creates a `PENDING` order (ids from 50,001,
+    - otherwise creates a `PENDING` order (ids from 90,001, the admin mock floor,
       `reservationExpiresAt` now + 15 min, tax from the address country),
       calls `cartMock.clear()` like the backend, and answers 201.
   - `GET /orders/{id}` serves the created order (404 otherwise), and
@@ -1115,8 +1116,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   unknown id gets 404 for the item but an empty movements page, as the app
   saw live) and adjustments. A repeated `requestId` replays the movement
   (201) when product, delta and reason match, otherwise 409; stock below
-  zero is 409. `loseNextResponse()` applies the change, then drops the
-  reply. `attempts` comes from `page.on('request')`, so it also counts
+  zero is 409. `loseNextResponse()` affects only the next adjustment
+  request: if it succeeds, the change is applied and the reply dropped; if
+  it is a replay or a 409, it's answered normally. `attempts` comes from `page.on('request')`, so it also counts
   requests an error mock answered. The stock status rule (0 out, 5 or
   less low) is a mock assumption.
 - **`ApiErrorMock`** (fixture `apiErrorMock`, not `auto`): makes any

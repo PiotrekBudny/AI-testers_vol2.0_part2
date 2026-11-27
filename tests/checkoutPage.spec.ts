@@ -51,17 +51,24 @@ test.describe('Checkout page', {
 
   test('a country without a VAT rate is shown as ordered without VAT', async ({
     checkoutPage,
+    paymentPage,
     fakeProductSearchMock,
     cartMock,
-    checkoutMock: _checkoutMock,
+    checkoutMock,
   }) => {
     const lines = seedCart(fakeProductSearchMock, cartMock);
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
 
-    await checkoutPage.fillAddress({ country: 'Atlantis' });
+    await checkoutPage.fillAddress(
+      new AddressGenerator().generate({ country: 'Atlantis' }),
+    );
 
     await checkoutPage.expectNoVatFor('Atlantis');
+
+    await checkoutPage.placeOrder();
+
+    await paymentPage.expectToShowOrder(await checkoutMock.waitForOrder());
   });
 
   test('checkout with an empty cart sends the client back to the cart', async ({

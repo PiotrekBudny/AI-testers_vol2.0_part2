@@ -34,11 +34,14 @@ export class PaymentPage extends BasePage {
     await this.expectToBeOpen();
     await expect(this.heading).toHaveText(`Pay for order #${order.id}`);
     await expect(this.texts.total).toHaveText(formatUsd(order.totalAmount));
-    if (order.taxRate !== null && order.taxAmount !== null) {
-      await expect(this.texts.vatLabel).toHaveText(
-        `incl. VAT ${order.taxRate}% (${order.taxCountry})`,
-      );
-      await expect(this.texts.vat).toHaveText(formatUsd(order.taxAmount));
+    if (order.taxRate === null || order.taxAmount === null) {
+      await expect(this.texts.vatLabel).toBeHidden();
+      await expect(this.texts.vat).toBeHidden();
+      return;
     }
+    await expect(this.texts.vatLabel).toHaveText(
+      `incl. VAT ${order.taxRate}% (${order.taxCountry})`,
+    );
+    await expect(this.texts.vat).toHaveText(formatUsd(order.taxAmount));
   }
 }

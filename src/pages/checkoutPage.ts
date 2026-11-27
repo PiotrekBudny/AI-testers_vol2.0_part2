@@ -50,8 +50,7 @@ export class CheckoutPage extends BasePage {
   readonly form: Locator;
   readonly loading: Locator;
   readonly itemRows: Locator;
-  readonly submitButton: Locator;
-  readonly backLink: Locator;
+  readonly buttons: Locators<'placeOrder' | 'back'>;
 
   readonly inputs: Locators<AddressField>;
   readonly errors: Locators<AddressField>;
@@ -72,8 +71,10 @@ export class CheckoutPage extends BasePage {
     this.form = page.getByTestId('checkout-form');
     this.loading = page.getByTestId('checkout-loading');
     this.itemRows = page.getByTestId('checkout-items-list').getByRole('row');
-    this.submitButton = page.getByTestId('checkout-submit-button');
-    this.backLink = page.getByTestId('checkout-back-button');
+    this.buttons = {
+      placeOrder: page.getByTestId('checkout-submit-button'),
+      back: page.getByTestId('checkout-back-button'),
+    };
 
     const field = (part: 'input' | 'error') =>
       Object.fromEntries(
@@ -114,16 +115,16 @@ export class CheckoutPage extends BasePage {
   }
 
   async placeOrder(): Promise<void> {
-    await this.submitButton.click();
+    await this.buttons.placeOrder.click();
   }
 
   async forcePlaceOrder(): Promise<void> {
-    await this.submitButton.click({ force: true });
-    await this.submitButton.dispatchEvent('click');
+    await this.buttons.placeOrder.click({ force: true });
+    await this.buttons.placeOrder.dispatchEvent('click');
   }
 
   async backToCart(): Promise<void> {
-    await this.backLink.click();
+    await this.buttons.back.click();
   }
 
   async expectToShowCart(lines: CartLine[]): Promise<void> {
@@ -206,13 +207,13 @@ export class CheckoutPage extends BasePage {
   }
 
   async expectProcessing(): Promise<void> {
-    await expect(this.submitButton).toHaveText('Processing...');
-    await expect(this.submitButton).toBeDisabled();
+    await expect(this.buttons.placeOrder).toHaveText('Processing...');
+    await expect(this.buttons.placeOrder).toBeDisabled();
   }
 
   async expectReadyToPlace(): Promise<void> {
-    await expect(this.submitButton).toHaveText('Place Order');
-    await expect(this.submitButton).toBeEnabled();
+    await expect(this.buttons.placeOrder).toHaveText('Place Order');
+    await expect(this.buttons.placeOrder).toBeEnabled();
   }
 
   async expectAvailabilityConflict(): Promise<void> {
