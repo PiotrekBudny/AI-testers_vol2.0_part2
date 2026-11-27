@@ -33,6 +33,8 @@ src/
   components/adminProductRow.ts             AdminProductRow (one admin-product-row-{id})
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
+  components/inventoryInspector.ts          InventoryInspector (selected item, adjustment form, movements)
+  components/inventoryRow.ts                InventoryRow (one inventory-row-{id})
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
@@ -96,6 +98,7 @@ tests/                                      Playwright specs (testDir)
   adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
   adminProducts.spec.ts                     /admin/products: list, empty, delete confirm/dismiss/pending/409, loading, load error
   adminOrders.spec.ts                       /admin/orders + details: paging, filter, status update, rejection, cancel, load error
+  adminInventory.spec.ts                    /admin/inventory: filters, adjustments, validation, conflict, lost reply, errors
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
@@ -806,6 +809,32 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     reject. The backend allows cancelling a PAID order, but the UI has no
     button for it. A DELIVERED order shows a customer-style "Request a
     return" button (`order-return-open`, not modelled).
+- Admin inventory (`/admin/inventory`, "Inventory – Awesome Testing"; a
+  selected item is at `/admin/inventory/{id}`, same title),
+  `AdminInventoryPage` with `InventoryRow` and `InventoryInspector`:
+  - The list reads
+    `GET /admin/inventory?page=0&size=20[&search&category&status]&lowStockThreshold=5`.
+    Search queries on every keystroke, so check the **last** query. A
+    filter change returns to page 0, and the URL doesn't change. Table
+    cells have no test ids (`getByRole('cell')` inside the row).
+  - Selecting a row reads the item (with `lowStockThreshold`) and
+    `/movements?page=0&size=20`. `inventory-movements-refresh` isn't
+    modelled. Movement rows read "ADMIN ADJUSTMENT" (uppercase in
+    `textContent`), `+3` or `-5` (ASCII hyphen), then "reason · date".
+  - Apply is disabled for an empty, zero, decimal or non-numeric delta
+    and a blank reason. The UI allows removing more than the stock.
+  - Adjusting sends `POST /admin/inventory/{id}/adjustments`
+    `{delta, reason, requestId}`. Success refetches, clears the form and
+    shows no toast; the next adjustment gets a new `requestId`. Pending
+    reads "Applying…" (U+2026).
+  - A failure keeps the form and isn't retried: 409 has its own conflict
+    text, everything else the same generic one. **The `requestId` is kept
+    until a success**, also after editing delta or reason.
+  - Quirks: after a lost reply, an edited retry gets a conflict that
+    advises retrying "the same adjustment", although the first one was
+    saved. While loading and after a list error the page still shows
+    "0 products" and "Page 0 of 0". One match reads "1 products". The
+    inspector keeps an item that a filter removed from the list.
 
 ## Mocking conventions
 
