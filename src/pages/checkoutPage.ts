@@ -1,13 +1,13 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { CheckoutItemRow } from '@/components/checkoutItemRow';
 import { formatUsd } from '@/formatters/price';
+import type { CartLine } from '@/models/cart';
 import type {
   Address,
   AddressField,
-  FieldErrors,
+  AddressFieldErrors,
   TaxPreview,
 } from '@/models/order';
-import type { Product } from '@/models/product';
 import type { Locators } from '@/types/locators';
 import { BasePage } from './basePage';
 
@@ -39,8 +39,6 @@ const ZIP_FORMAT_MESSAGE = 'Invalid postal/zip code format';
 
 const AVAILABILITY_MESSAGE =
   'Some items are no longer available in the requested quantity. Your cart was preserved; review it before trying again.';
-
-type CartLine = { product: Product; quantity: number };
 
 export class CheckoutPage extends BasePage {
   readonly url = '/checkout';
@@ -172,7 +170,7 @@ export class CheckoutPage extends BasePage {
     await expect(this.texts.taxLabel).toBeHidden();
   }
 
-  async expectFieldErrors(errors: FieldErrors): Promise<void> {
+  async expectFieldErrors(errors: AddressFieldErrors): Promise<void> {
     for (const name of ADDRESS_FIELDS) {
       const message = errors[name];
       if (message === undefined) {
@@ -195,7 +193,7 @@ export class CheckoutPage extends BasePage {
     required?: AddressField[];
     invalidZip?: boolean;
   }): Promise<void> {
-    const errors: FieldErrors = {};
+    const errors: AddressFieldErrors = {};
     for (const name of required) {
       errors[name] = REQUIRED_MESSAGES[name];
     }

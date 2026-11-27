@@ -1,11 +1,11 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
 import { requireMockIds } from '@/config/mockIds';
 import type { Order, OrderStatus } from '@/models/order';
-import type { PageDto } from '@/models/pageDto';
-import { apiRoutes } from './apiRoutes';
-import { pathId } from './pathId';
-import { ResponseHold } from './responseHold';
+import { pageOf } from './support/paging';
+import { pathId } from './support/pathId';
+import { ResponseHold } from './support/responseHold';
 
 const FORWARD_RANK: Record<Exclude<OrderStatus, 'CANCELLED'>, number> = {
   PENDING: 0,
@@ -154,15 +154,7 @@ export class AdminOrdersMock {
       (order) => query.status === null || order.status === query.status,
     );
     const pageSize = Math.min(query.size, this.pageSize ?? query.size);
-    const start = query.page * pageSize;
-    const body: PageDto<Order> = {
-      content: matching.slice(start, start + pageSize),
-      pageNumber: query.page,
-      pageSize,
-      totalElements: matching.length,
-      totalPages: Math.ceil(matching.length / pageSize),
-    };
-    await route.fulfill({ json: body });
+    await route.fulfill({ json: pageOf(matching, query.page, pageSize) });
   }
 
   private async handleOrder(route: Route): Promise<void> {

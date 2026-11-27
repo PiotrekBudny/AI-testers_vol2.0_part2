@@ -3,30 +3,27 @@ import {
   SERVER_ERROR_ATTEMPTS,
 } from '@/config/timing';
 import { test } from '@/fixtures/test';
-import { AdminDataGenerator } from '@/generators/adminDataGenerator';
+import { ShopDataGenerator } from '@/generators/shopDataGenerator';
+import { fixedTimestamp } from '@/generators/timestamps';
 import type { AdminCatalogMock } from '@/mocks/adminCatalogMock';
 import type { AdminOrdersMock } from '@/mocks/adminOrdersMock';
-
-function createdOn(day: number): string {
-  return `2026-11-${String(day).padStart(2, '0')}T10:00:00.000001`;
-}
 
 function seedSmallShop(
   adminCatalogMock: AdminCatalogMock,
   adminOrdersMock: AdminOrdersMock,
 ) {
-  const data = new AdminDataGenerator();
+  const data = new ShopDataGenerator();
   const lowStock = data.product(90_001, { stockQuantity: 2 });
   const stocked = data.product(90_002, { stockQuantity: 40 });
   const older = data.order(90_001, {
     status: 'PAID',
     totalAmount: 120,
-    createdAt: createdOn(1),
+    createdAt: fixedTimestamp(1),
   });
   const newer = data.order(90_002, {
     status: 'PENDING',
     totalAmount: 80,
-    createdAt: createdOn(2),
+    createdAt: fixedTimestamp(2),
   });
   adminCatalogMock.seed([lowStock, stocked]);
   adminOrdersMock.seed([older, newer]);
@@ -48,41 +45,41 @@ test.describe('Admin dashboard', {
     adminCatalogMock: _adminCatalogMock,
     adminOrdersMock,
   }) => {
-    const data = new AdminDataGenerator();
+    const data = new ShopDataGenerator();
     const third = data.order(90_001, {
       status: 'PAID',
       totalAmount: 100,
-      createdAt: createdOn(3),
+      createdAt: fixedTimestamp(3),
     });
     const seventh = data.order(90_002, {
       status: 'PENDING',
       totalAmount: 10,
-      createdAt: createdOn(1),
+      createdAt: fixedTimestamp(1),
     });
     const second = data.order(90_003, {
       status: 'SHIPPED',
       totalAmount: 200,
-      createdAt: createdOn(6),
+      createdAt: fixedTimestamp(6),
     });
     const sixth = data.order(90_004, {
       status: 'DELIVERED',
       totalAmount: 300,
-      createdAt: createdOn(2),
+      createdAt: fixedTimestamp(2),
     });
     const newest = data.order(90_005, {
       status: 'PENDING',
       totalAmount: 400,
-      createdAt: createdOn(7),
+      createdAt: fixedTimestamp(7),
     });
     const cancelled = data.order(90_006, {
       status: 'CANCELLED',
       totalAmount: 5000,
-      createdAt: createdOn(5),
+      createdAt: fixedTimestamp(5),
     });
     const fourth = data.order(90_007, {
       status: 'PENDING',
       totalAmount: 25.5,
-      createdAt: createdOn(4),
+      createdAt: fixedTimestamp(4),
     });
     adminOrdersMock.pageSize = 4;
     adminOrdersMock.seed([
@@ -124,7 +121,7 @@ test.describe('Admin dashboard', {
     adminCatalogMock,
     adminOrdersMock: _adminOrdersMock,
   }) => {
-    const data = new AdminDataGenerator();
+    const data = new ShopDataGenerator();
     const four = data.product(90_001, { stockQuantity: 4 });
     const five = data.product(90_002, { stockQuantity: 5 });
     const none = data.product(90_003, { stockQuantity: 0 });

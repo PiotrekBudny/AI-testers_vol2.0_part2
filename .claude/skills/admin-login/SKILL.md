@@ -47,8 +47,8 @@ for new admin tests. CLAUDE.md has the page facts and the mocks
   request the mock for every read the test relies on. Never weaken it. A
   test that really needs a live write (rules below) needs a deliberate,
   user-approved change to the guard first.
-- Seed ids of 90,000 or more (`ADMIN_MOCK_ID_FLOOR`) with
-  `AdminDataGenerator`.
+- Seed ids of 90,000 or more (`SAFE_MOCK_ID_FLOOR`) with
+  `ShopDataGenerator`.
 
 ## Writing admin tests
 
@@ -69,7 +69,7 @@ for new admin tests. CLAUDE.md has the page facts and the mocks
 - The `storageState` fixture creates the admin state on first use in the run and loads it for subsequent admin tests. Use `getUser('admin').displayName` for the expected profile name.
 - `tests/adminAuth.spec.ts` proves the saved session: no redirect to `/login`, and the profile shows `ADMIN_DISPLAY_NAME`.
 - **Page objects:** follow CLAUDE.md.
-  - One class per view (`AdminDashboardPage`, `AdminProductsPage`, …) with a fixture in `src/fixtures/test.ts`; follow `src/pages/admin*Page.ts`.
+  - One class per view (`AdminDashboardPage`, `AdminProductsPage`, …) with a fixture in `src/fixtures/pages.ts`; follow `src/pages/admin*Page.ts`.
   - The section tabs are the `AdminSectionNav` component. Add a tab there when a test covers a new section.
   - `NavigationBar.adminLink` is admin-only. A `warehouse` link isn't modelled yet.
 - **Mocks:** reads on admin pages can use the fake or recorded mocks like any page. Record admin endpoints with the **har-to-mock** skill using `--role admin`, and replay them in an admin spec, since `serve()` checks the role.

@@ -1,6 +1,6 @@
 import { expect, type Page, type Request } from '@playwright/test';
+import { apiPaths } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { apiPaths } from '@/mocks/apiRoutes';
 
 const signInPath = apiPaths.signIn;
 

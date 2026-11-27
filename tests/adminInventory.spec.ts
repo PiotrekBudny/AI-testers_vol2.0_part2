@@ -1,19 +1,18 @@
+import { UNKNOWN_ID } from '@/config/mockIds';
 import {
   NO_MORE_REQUESTS_WINDOW_MS,
   SERVER_ERROR_ATTEMPTS,
 } from '@/config/timing';
 import { test } from '@/fixtures/test';
-import { AdminDataGenerator } from '@/generators/adminDataGenerator';
+import { ShopDataGenerator } from '@/generators/shopDataGenerator';
 
 test.use({ userRole: 'admin' });
-
-const UNKNOWN_PRODUCT_ID = 90_999;
 
 const removal = { delta: -5, reason: 'Damaged in storage' };
 const removalInput = { delta: '-5', reason: removal.reason };
 
 function inventory() {
-  const data = new AdminDataGenerator();
+  const data = new ShopDataGenerator();
   const keyboard = data.inventoryItem(90_001, {
     name: 'Mechanical Keyboard',
     category: 'Computers',
@@ -348,10 +347,10 @@ test.describe('Admin inventory adjustments', {
     const { items } = inventory();
     adminInventoryMock.seed(items);
 
-    await adminInventoryPage.openItem(UNKNOWN_PRODUCT_ID);
+    await adminInventoryPage.openItem(UNKNOWN_ID);
 
     await adminInventoryPage.inspector.expectUnableToLoadProduct();
-    await adminInventoryPage.expectItemOpen(UNKNOWN_PRODUCT_ID);
+    await adminInventoryPage.expectItemOpen(UNKNOWN_ID);
     await adminInventoryPage.expectItems(items);
   });
 });

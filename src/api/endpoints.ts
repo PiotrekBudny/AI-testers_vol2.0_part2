@@ -1,5 +1,6 @@
 export const apiPaths = {
   signIn: '/api/v1/users/signin',
+  signUp: '/api/v1/users/signup',
   productSearch: '/api/v1/products/search',
   cartItems: '/api/v1/cart/items',
   currentUser: '/api/v1/users/me',
@@ -10,6 +11,7 @@ export const apiPaths = {
 } as const;
 
 export const apiRoutes = {
+  signUp: `**${apiPaths.signUp}`,
   productSearch: `**${apiPaths.productSearch}**`,
   productList: /\/api\/v1\/products\/?(\?.*)?$/,
   productDetails: /\/api\/v1\/products\/\d+\/?(\?.*)?$/,

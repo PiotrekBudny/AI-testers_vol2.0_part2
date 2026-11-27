@@ -1,6 +1,10 @@
 import type { Page, Route } from '@playwright/test';
-import type { Product, ProductDetails } from '@/models/product';
-import { apiRoutes } from './apiRoutes';
+import { apiRoutes } from '@/api/endpoints';
+import { toProductDetails } from '@/generators/productGenerator';
+import type { Product } from '@/models/product';
+import { pageOf } from './support/paging';
+
+const REVIEWS_PAGE_SIZE = 10;
 
 export class FakeProductDetailsMock {
   product: Product;
@@ -18,7 +22,7 @@ export class FakeProductDetailsMock {
       this.fulfillDetails(route),
     );
     await this.page.route(apiRoutes.productReviews, (route) =>
-      this.fulfillNoReviews(route),
+      this.fulfillEmptyReviews(route),
     );
   }
 
@@ -52,10 +56,10 @@ export class FakeProductDetailsMock {
       });
       return;
     }
-    await route.fulfill({ json: toDetails(product) });
+    await route.fulfill({ json: toProductDetails(product) });
   }
 
-  private async fulfillNoReviews(route: Route): Promise<void> {
+  private async fulfillEmptyReviews(route: Route): Promise<void> {
     if (route.request().method() !== 'GET') {
       await route.fallback();
       return;
@@ -78,22 +82,6 @@ export class FakeProductDetailsMock {
       });
       return;
     }
-    await route.fulfill({
-      json: {
-        content: [],
-        pageNumber: 0,
-        pageSize: 10,
-        totalElements: 0,
-        totalPages: 0,
-      },
-    });
+    await route.fulfill({ json: pageOf([], 0, REVIEWS_PAGE_SIZE) });
   }
-}
-
-function toDetails({
-  averageRating: _rating,
-  reviewCount: _count,
-  ...details
-}: Product): ProductDetails {
-  return details;
 }

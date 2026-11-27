@@ -1,10 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
 import { requireMockIds } from '@/config/mockIds';
 import type { ProductDetails } from '@/models/product';
-import { apiRoutes } from './apiRoutes';
-import { pathId } from './pathId';
-import { ResponseHold } from './responseHold';
+import { pathId } from './support/pathId';
+import { ResponseHold } from './support/responseHold';
 
 export class AdminCatalogMock {
   readonly deletedIds: number[] = [];

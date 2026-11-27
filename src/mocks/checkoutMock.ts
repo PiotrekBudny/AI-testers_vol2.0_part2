@@ -1,17 +1,20 @@
 import { expect, type Page, type Request, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { ADMIN_MOCK_ID_FLOOR } from '@/config/mockIds';
-import { roundToCents } from '@/formatters/price';
+import { SAFE_MOCK_ID_FLOOR } from '@/config/mockIds';
+import { ShopDataGenerator } from '@/generators/shopDataGenerator';
+import { toBackendTimestamp } from '@/generators/timestamps';
 import type {
   Address,
-  FieldErrors,
+  AddressFieldErrors,
   Order,
   TaxPreview,
   VatRate,
 } from '@/models/order';
-import { apiRoutes } from './apiRoutes';
 import type { CartMock } from './cartMock';
-import { ResponseHold } from './responseHold';
+import { roundToCents } from './support/money';
+import { pathId } from './support/pathId';
+import { ResponseHold } from './support/responseHold';
 
 const DEFAULT_VAT_RATES: VatRate[] = [
   { countryCode: 'PL', countryName: 'Poland', rate: 23 },
@@ -19,7 +22,6 @@ const DEFAULT_VAT_RATES: VatRate[] = [
   { countryCode: 'US', countryName: 'United States', rate: 0 },
 ];
 
-const ORDER_ID_FLOOR = ADMIN_MOCK_ID_FLOOR;
 const RESERVATION_MS = 15 * 60_000;
 
 type ReceivedOrder = {
@@ -38,6 +40,7 @@ export class CheckoutMock {
   private readonly vatRates: VatRate[] = [...DEFAULT_VAT_RATES];
   private readonly taxPreviews: TaxPreview[] = [];
   private readonly orderHold = new ResponseHold();
+  private readonly orderData = new ShopDataGenerator();
 
   constructor(
     private readonly page: Page,
@@ -67,7 +70,7 @@ export class CheckoutMock {
     this.stockLimits.set(productId, available);
   }
 
-  async rejectAddress(errors: FieldErrors): Promise<void> {
+  async rejectAddress(errors: AddressFieldErrors): Promise<void> {
     await this.page.route(
       apiRoutes.orders,
       async (route) => {
@@ -263,7 +266,7 @@ export class CheckoutMock {
   }
 
   private createOrder(address: Address): Order {
-    const id = ORDER_ID_FLOOR + this.orders.length + 1;
+    const id = SAFE_MOCK_ID_FLOOR + this.orders.length + 1;
     const items = this.cartMock.lines().map(({ product, quantity }, index) => ({
       id: id * 100 + index,
       productId: product.id,
@@ -275,15 +278,10 @@ export class CheckoutMock {
     const totalAmount = this.cartMock.cart().totalPrice;
     const tax = this.taxFor(address.country, totalAmount);
     const now = new Date();
-    const timestamp = now.toISOString().replace('Z', '');
-    const order: Order = {
-      id,
+    const order = this.orderData.order(id, {
       username: this.username,
       items,
       totalAmount,
-      subtotalAmount: totalAmount,
-      discountAmount: 0,
-      couponCode: null,
       status: 'PENDING',
       taxCountry: tax?.country ?? null,
       taxRate: tax?.rate ?? null,
@@ -293,9 +291,8 @@ export class CheckoutMock {
         now.getTime() + RESERVATION_MS,
       ).toISOString(),
       shippingAddress: address,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-    };
+      createdAt: toBackendTimestamp(now),
+    });
     this.orders.push(order);
     return order;
   }
@@ -305,9 +302,7 @@ export class CheckoutMock {
       await route.fallback();
       return;
     }
-    const id = Number(
-      new URL(route.request().url()).pathname.split('/').filter(Boolean).at(-1),
-    );
+    const id = pathId(route.request().url());
     const order = this.orders.find((candidate) => candidate.id === id);
     if (order === undefined) {
       await route.fulfill({

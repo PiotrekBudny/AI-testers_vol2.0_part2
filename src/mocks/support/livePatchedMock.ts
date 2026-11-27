@@ -4,8 +4,8 @@ import {
   type Page,
   type Route,
 } from '@playwright/test';
+import { type ApiEndpoint, apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { type ApiEndpoint, apiRoutes } from './apiRoutes';
 
 type LiveTransform<T> = (realResponse: T) => T;
 

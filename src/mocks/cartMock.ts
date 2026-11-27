@@ -1,10 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { roundToCents } from '@/formatters/price';
-import type { Cart, CartItem } from '@/models/cart';
+import type { Cart, CartItem, CartLine } from '@/models/cart';
 import type { Product } from '@/models/product';
-import { apiRoutes } from './apiRoutes';
-import { ResponseHold } from './responseHold';
+import { roundToCents } from './support/money';
+import { ResponseHold } from './support/responseHold';
 
 const CART_ITEM_NOT_FOUND = { message: 'Cart item not found' };
 
@@ -65,7 +65,7 @@ export class CartMock {
     };
   }
 
-  lines(): { product: Product; quantity: number }[] {
+  lines(): CartLine[] {
     return [...this.items].map(([productId, quantity]) => {
       const product = this.products().find(
         (candidate) => candidate.id === productId,
@@ -91,6 +91,14 @@ export class CartMock {
       throw new Error(unknownProduct(productId));
     }
     return price;
+  }
+
+  seedLines(lines: CartLine[]): void {
+    this.seed(lines.map(toCartItem));
+  }
+
+  async expectCartLines(lines: CartLine[]): Promise<void> {
+    await this.expectCartItems(lines.map(toCartItem));
   }
 
   async expectCartItems(items: CartItem[]): Promise<void> {
@@ -220,4 +228,8 @@ export class CartMock {
 
 function unknownProduct(productId: number): string {
   return `CartMock has no product ${productId}: add it to fakeProductSearchMock.products or use fakeProductDetailsMock.product`;
+}
+
+function toCartItem({ product, quantity }: CartLine): CartItem {
+  return { productId: product.id, quantity };
 }

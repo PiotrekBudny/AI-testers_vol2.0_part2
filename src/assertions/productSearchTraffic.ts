@@ -1,5 +1,5 @@
 import { expect, type Page, type Response } from '@playwright/test';
-import { apiPaths } from '@/mocks/apiRoutes';
+import { apiPaths } from '@/api/endpoints';
 import type { Product } from '@/models/product';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 

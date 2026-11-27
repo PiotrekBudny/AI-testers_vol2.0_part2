@@ -1,3 +1,5 @@
+import type { FieldErrors } from './fieldErrors';
+
 export interface Address {
   street: string;
   city: string;
@@ -8,7 +10,7 @@ export interface Address {
 
 export type AddressField = keyof Address;
 
-export type FieldErrors = Partial<Record<AddressField, string>>;
+export type AddressFieldErrors = FieldErrors<AddressField>;
 
 export type OrderStatus =
   | 'PENDING'

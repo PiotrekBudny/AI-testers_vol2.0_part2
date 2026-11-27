@@ -8,6 +8,7 @@ export const featureTags = [
   'admin-products',
   'admin-orders',
   'admin-inventory',
+  'register',
 ] as const;
 
 export const dataTags = ['@mocked', '@live'] as const;

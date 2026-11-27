@@ -36,7 +36,7 @@ A refresh with unchanged live data writes a byte-identical file (verified), beca
    node .claude/skills/har-to-mock/capture.mjs <name> --page <path> --route "<glob>" [--role client]
    ```
    - `--page`: the app page that triggers the request, for example `products` or `products/7`. In **Git Bash**, write it **without** the leading slash, because Git Bash rewrites `/products` into a Windows path. The script detects that and says so. PowerShell accepts `/products`.
-   - `--route`: the Playwright URL glob to record, for example `"**/api/v1/products/search**"`. Prefer a glob from `src/mocks/apiRoutes.ts`.
+   - `--route`: the Playwright URL glob to record, for example `"**/api/v1/products/search**"`. Prefer a glob from `src/api/endpoints.ts`.
    - `--role`: which `.env` account signs in (defaults to `client`).
 2. Write the replay spec as `tests/<something>Har.spec.ts`, using `tests/productsPageHar.spec.ts` as the pattern:
    - `const recording = await harReplayMock.serve('<name>')` builds a HAR from the JSON for the test's `baseURL` origin and routes `recording.capture.route` from it, with `notFound: 'abort'`.

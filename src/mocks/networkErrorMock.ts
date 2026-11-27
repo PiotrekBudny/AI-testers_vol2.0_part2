@@ -1,8 +1,7 @@
 import { expect, type Page } from '@playwright/test';
+import { type ApiEndpoint, apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
-import { type ApiEndpoint, apiRoutes } from './apiRoutes';
-
-const ATTEMPTS_TIMEOUT_MS = 10_000;
+import { RETRY_WAIT_TIMEOUT_MS } from '@/config/timing';
 
 type NetworkErrorCode =
   | 'failed'
@@ -49,7 +48,7 @@ export class NetworkErrorMock {
     await expect
       .poll(() => this.abortedCount(endpoint), {
         message: `waiting for ${atLeast} aborted requests to ${endpoint}`,
-        timeout: ATTEMPTS_TIMEOUT_MS,
+        timeout: RETRY_WAIT_TIMEOUT_MS,
       })
       .toBeGreaterThanOrEqual(atLeast);
   }
@@ -65,7 +64,7 @@ export class NetworkErrorMock {
       count,
       forMs,
       `aborted requests to ${endpoint}`,
-      ATTEMPTS_TIMEOUT_MS,
+      RETRY_WAIT_TIMEOUT_MS,
     );
   }
 }

@@ -1,7 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
-import { ProductSearchResponseBuilder } from '@/builders/productSearchResponseBuilder';
+import { apiRoutes } from '@/api/endpoints';
 import type { Product } from '@/models/product';
-import { apiRoutes } from './apiRoutes';
+import { ProductSearchResponseBuilder } from './support/productSearchResponseBuilder';
 
 export class FakeProductSearchMock {
   products: Product[];

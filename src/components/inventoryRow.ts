@@ -1,11 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import type { InventoryItem, StockStatus } from '@/models/inventory';
-
-export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
-  IN_STOCK: 'In stock',
-  LOW_STOCK: 'Low stock',
-  OUT_OF_STOCK: 'Out of stock',
-};
+import type { InventoryItem } from '@/models/inventory';
+import { STOCK_STATUS_LABELS } from './inventoryLabels';
 
 export class InventoryRow {
   readonly root: Locator;

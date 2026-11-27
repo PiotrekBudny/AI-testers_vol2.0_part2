@@ -1,4 +1,5 @@
 import { expect, type Page, type Request, type Route } from '@playwright/test';
+import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
 import { requireMockIds } from '@/config/mockIds';
 import type {
@@ -7,10 +8,9 @@ import type {
   InventoryMovement,
   StockStatus,
 } from '@/models/inventory';
-import type { PageDto } from '@/models/pageDto';
-import { apiRoutes } from './apiRoutes';
-import { pathId } from './pathId';
-import { ResponseHold } from './responseHold';
+import { pageOf } from './support/paging';
+import { pathId } from './support/pathId';
+import { ResponseHold } from './support/responseHold';
 
 const LOW_STOCK_LIMIT = 5;
 
@@ -186,7 +186,7 @@ export class AdminInventoryMock {
         (query.status === null || item.stockStatus === query.status),
     );
     await route.fulfill({
-      json: this.pageOf(
+      json: pageOf(
         matching,
         query.page,
         Math.min(query.size, this.pageSize ?? query.size),
@@ -217,7 +217,7 @@ export class AdminInventoryMock {
     }
     const params = new URL(route.request().url()).searchParams;
     await route.fulfill({
-      json: this.pageOf(
+      json: pageOf(
         this.movementsOf(pathId(route.request().url(), 1)),
         Number(params.get('page') ?? 0),
         Number(params.get('size') ?? 20),
@@ -294,16 +294,6 @@ export class AdminInventoryMock {
 
   private async fulfillConflict(route: Route, message: string): Promise<void> {
     await route.fulfill({ status: 409, json: { message } });
-  }
-
-  private pageOf<T>(all: T[], page: number, size: number): PageDto<T> {
-    return {
-      content: all.slice(page * size, (page + 1) * size),
-      pageNumber: page,
-      pageSize: size,
-      totalElements: all.length,
-      totalPages: Math.ceil(all.length / size),
-    };
   }
 }
 

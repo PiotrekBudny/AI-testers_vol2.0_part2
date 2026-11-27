@@ -3,7 +3,7 @@ import {
   SERVER_ERROR_ATTEMPTS,
 } from '@/config/timing';
 import { test } from '@/fixtures/test';
-import { AdminDataGenerator } from '@/generators/adminDataGenerator';
+import { ShopDataGenerator } from '@/generators/shopDataGenerator';
 
 test.use({ userRole: 'admin' });
 
@@ -14,7 +14,7 @@ test.describe('Admin orders', {
     adminOrdersPage,
     adminOrdersMock,
   }) => {
-    const data = new AdminDataGenerator();
+    const data = new ShopDataGenerator();
     const firstPaid = data.order(90_001, { status: 'PAID' });
     const pending = data.order(90_002, { status: 'PENDING' });
     const shipped = data.order(90_003, { status: 'SHIPPED' });
@@ -59,7 +59,7 @@ test.describe('Admin orders', {
     adminOrdersPage,
     adminOrdersMock,
   }) => {
-    const order = new AdminDataGenerator().order(90_001, {
+    const order = new ShopDataGenerator().order(90_001, {
       status: 'PENDING',
     });
     adminOrdersMock.seed([order]);
@@ -80,7 +80,7 @@ test.describe('Admin orders', {
     adminOrderDetailsPage,
     adminOrdersMock,
   }) => {
-    const order = new AdminDataGenerator().order(90_001, {
+    const order = new ShopDataGenerator().order(90_001, {
       status: 'PENDING',
     });
     adminOrdersMock.seed([order]);
@@ -112,7 +112,7 @@ test.describe('Admin orders', {
     adminOrderDetailsPage,
     adminOrdersMock,
   }) => {
-    const order = new AdminDataGenerator().order(90_001, { status: 'PAID' });
+    const order = new ShopDataGenerator().order(90_001, { status: 'PAID' });
     adminOrdersMock.seed([order]);
     const releaseUpdate = adminOrdersMock.holdUpdates();
     await adminOrderDetailsPage.open(order.id);
@@ -142,7 +142,7 @@ test.describe('Admin orders', {
   test('a rejected status change keeps the order and is not retried', {
     tag: '@negative',
   }, async ({ adminOrderDetailsPage, adminOrdersMock }) => {
-    const order = new AdminDataGenerator().order(90_001, {
+    const order = new ShopDataGenerator().order(90_001, {
       status: 'DELIVERED',
     });
     adminOrdersMock.seed([order]);
@@ -167,7 +167,7 @@ test.describe('Admin orders', {
     adminOrderDetailsPage,
     adminOrdersMock,
   }) => {
-    const order = new AdminDataGenerator().order(90_001, {
+    const order = new ShopDataGenerator().order(90_001, {
       status: 'PENDING',
     });
     adminOrdersMock.seed([order]);

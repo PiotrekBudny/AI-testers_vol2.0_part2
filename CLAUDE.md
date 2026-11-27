@@ -13,7 +13,7 @@ the answer into the relevant section.
 Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
 (`page.route`), plus a few tests against the live API. Current scope:
-the login form, the product list (search, errors, network errors), the
+the login and registration forms, the product list (search, errors, network errors), the
 product details page, the cart and checkout (up to the payment page), and
 the admin dashboard, products, orders and inventory pages.
 
@@ -28,34 +28,38 @@ the admin dashboard, products, orders and inventory pages.
 
 ```
 src/
-  builders/productSearchResponseBuilder.ts  full search response (paging + facets)
   components/adminSectionNav.ts             AdminSectionNav (tabs on every /admin page)
   components/adminOrderRow.ts               AdminOrderRow (one admin-order-row-{id})
   components/adminProductRow.ts             AdminProductRow (one admin-product-row-{id})
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
   components/inventoryInspector.ts          InventoryInspector (selected item, adjustment form, movements)
+  components/inventoryLabels.ts             STOCK_STATUS_LABELS (stock status texts)
   components/inventoryRow.ts                InventoryRow (one inventory-row-{id})
+  components/nativeDialogs.ts               NativeDialogs (answers native confirm/alert, logs them)
   components/navigationBar.ts               NavigationBar (top menu, logged out and in)
   components/productCard.ts                 ProductCard (one product-item in the list)
   components/toast.ts                       Toast (notification viewport)
+  api/endpoints.ts                          apiPaths (endpoint paths), apiRoutes (route globs), ApiEndpoint
   api/authApi.ts                            AuthApi: POST /api/v1/users/signin
   api/savedAuthState.ts                     creates and shares one saved session per role and origin
-  config/mockIds.ts                         ADMIN_MOCK_ID_FLOOR (90,000) and requireMockIds
+  config/mockIds.ts                         mock id ranges (SAFE_MOCK_ID_FLOOR, details range, UNKNOWN_ID), requireMockIds
   config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
-  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS ("nothing more sent"), SERVER_ERROR_ATTEMPTS, LOAD_ERROR_TIMEOUT_MS
+  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS ("nothing more sent"), SERVER_ERROR_ATTEMPTS, LOAD_ERROR_TIMEOUT_MS, RETRY_WAIT_TIMEOUT_MS
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
-  generators/adminDataGenerator.ts          fake admin products, orders and inventory items
+  generators/shopDataGenerator.ts           fake product details, orders and inventory items (admin specs, checkout orders)
   generators/addressGenerator.ts            faker-based Address (valid ZIP, country Poland)
-  generators/productGenerator.ts            faker-based Product generator
-  formatters/price.ts                       formatUsd (en-US USD text as the app shows it), roundToCents
+  generators/productGenerator.ts            faker-based Product generator, generateCart, toProductDetails
+  generators/timestamps.ts                  backend timestamp format, fixedTimestamp, BASE_TIMESTAMP
+  formatters/price.ts                       formatUsd (en-US USD text as the app shows it)
   models/inventory.ts                       InventoryItem, InventoryMovement, InventoryAdjustment
   models/pageDto.ts                         PageDto<T>, the backend page wrapper
   models/product.ts                         Product (one search hit), ProductDetails
   models/auth.ts                            LoginRequest, LoginResponse, ApiSession
-  models/cart.ts                            Cart, CartItem (cart API shapes used so far)
-  models/order.ts                           Address, Order, OrderItem, TaxPreview, VatRate, FieldErrors
+  models/cart.ts                            Cart, CartItem, CartLine ({product, quantity})
+  models/fieldErrors.ts                     FieldErrors<F>: messages keyed by field
+  models/order.ts                           Address, Order, OrderItem, TaxPreview, VatRate, AddressFieldErrors
   models/productSearchResponse.ts           response, facets, price range types
   pages/admin{Dashboard,Products,Orders,OrderDetails,Inventory}Page.ts  admin views
   pages/basePage.ts                         abstract BasePage (url, goto, shared components)
@@ -67,30 +71,39 @@ src/
   pages/loginPage.ts                        LoginPage page object (/login)
   pages/productDetailsPage.ts               ProductDetailsPage (/products/{id}, open(product))
   pages/productsPage.ts                     ProductsPage (/products)
-  pages/registerPage.ts                     RegisterPage (/register, url + title only)
+  pages/registerPage.ts                     RegisterPage (/register form, errors, pending state)
   assertions/settle.ts                      expectToStay: poll, wait a window, check again
   assertions/signInTraffic.ts               SignInTraffic: sign-in requests sent, accepted, rejected
   assertions/productSearchTraffic.ts        ProductSearchTraffic: real search response is OK
-  fixtures/test.ts                          test/expect with page object + mock fixtures
+  fixtures/test.ts                          test/expect: mergeTests of the fixture modules below
+  fixtures/session.ts                       userRole option, storageState (API login), requireBaseURL
+  fixtures/har.ts                           harRecording option, HAR recording + sanitizing
+  fixtures/safety.ts                        tagPolicy, adminWriteGuard, signupGuard (auto)
+  fixtures/pages.ts                         one fixture per page object
+  fixtures/mocks.ts                         mocks, traffic assertions, twoLineCart, endpoint ownership
   har/harFile.ts                            HAR types, read/write, sanitizeHar, pathAndQuery
   har/recording.ts                          Recording type, readRecording, harFromRecording
   mocks/adminCatalogMock.ts                 fake GET /products + DELETE /products/{id}
   mocks/adminInventoryMock.ts               fake /admin/inventory list, item, movements, adjustments
   mocks/adminOrdersMock.ts                  fake /orders/admin, order reads, status and cancel
   mocks/apiErrorMock.ts                     error responses (4xx/5xx) for any apiRoutes endpoint
-  mocks/apiRoutes.ts                        apiPaths (endpoint paths), route globs, ApiEndpoint
   mocks/cartMock.ts                         stateful fake cart: GET/DELETE /cart, POST /cart/items, PUT/DELETE /cart/items/{id}
   mocks/checkoutMock.ts                     fake checkout on top of CartMock: tax preview, POST /orders, order + payments reads
   mocks/fakeProductDetailsMock.ts           fake GET /products/{id} + empty reviews
   mocks/fakeProductSearchMock.ts            fake product search (generated products)
   mocks/harReplayMock.ts                    replays a recording as a HAR (routeFromHAR)
-  mocks/livePatchedMock.ts                  generic LivePatchedMock<T>: route.fetch + transform + fulfill
   mocks/livePatchedProductDetailsMock.ts    real GET /products/{id}, patched (stockQuantity)
   mocks/livePatchedProductSearchMock.ts     real product search, patched on the fly
   mocks/networkErrorMock.ts                 aborts requests (no response) and counts attempts
-  mocks/responseHold.ts                     ResponseHold: hold mocked responses until released
-  mocks/pathId.ts                           numeric id from a request URL path
+  mocks/signupMock.ts                       fake POST /users/signup (201), logs bodies, holds responses
   mocks/recorded/productSearch.json         committed recording of GET /api/v1/products/search
+  mocks/support/endpointOwners.ts           EndpointOwners: one mock per endpoint in a test
+  mocks/support/livePatchedMock.ts          generic LivePatchedMock<T>: route.fetch + transform + fulfill
+  mocks/support/money.ts                    roundToCents
+  mocks/support/paging.ts                   pageOf: a PageDto slice with totals
+  mocks/support/pathId.ts                   numeric id from a request URL path
+  mocks/support/productSearchResponseBuilder.ts  full search response (paging + facets)
+  mocks/support/responseHold.ts             ResponseHold: hold mocked responses until released
   types/locators.ts                         Locators<K> type for locator groups
 hars/                                       raw HARs from the har-to-mock skill, git-ignored
 tests/                                      Playwright specs (testDir)
@@ -102,6 +115,7 @@ tests/                                      Playwright specs (testDir)
   adminOrders.spec.ts                       /admin/orders + details: paging, filter, status update, rejection, cancel, load error
   adminInventory.spec.ts                    /admin/inventory: filters, adjustments, validation, conflict, lost reply, errors
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
+  registerPage.spec.ts                      /register (empty storageState): validation, mocked signup, username taken
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
   productsPageApiErrors.spec.ts             /products negative: search 404/500, Retry, /me 401
@@ -150,7 +164,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `test:products`, `test:product-details`, `test:cart`, `test:checkout`,
   `test:admin` (all four admin areas), `test:admin-dashboard`,
   `test:admin-products`, `test:admin-orders`, `test:admin-inventory`,
-  `test:mocked`, `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
+  `test:register`, `test:mocked`, `test:live`, `test:negative`). `npm run typecheck` runs `tsc --noEmit`,
   `npm run check` runs `biome check --write --unsafe`, and `npm run format`
   runs `biome format --write`.
 - Biome 2: 2-space indent, single quotes, recommended rules (for example, it
@@ -287,7 +301,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - `trace`: `off` on CI (see the CI notes on public artifacts), `on-first-retry`
   locally. Desktop Chrome is set in the top-level `use`, and the projects
   split the suite by category (see Test categories).
-- HAR recording is the `harRecording` option fixture, set in the config
+- HAR recording is the `harRecording` option fixture (`src/fixtures/har.ts`), set in the config
   to `!isCI`, so it's **on locally only**. The config is typed
   `defineConfig<Options>` to accept it.
   - The fixture overrides the built-in `contextOptions` with `recordHar`,
@@ -340,15 +354,15 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   example `tests/loginPage.spec.ts`) has several top-level describes.
 - Every test carries exactly **one feature tag**, set on its describe:
   `@auth`, `@products`, `@product-details`, `@cart`, `@checkout`,
-  `@admin-dashboard`, `@admin-products`, `@admin-orders` or
-  `@admin-inventory` (`--grep @admin-`, or `npm run test:admin`, runs all
+  `@admin-dashboard`, `@admin-products`, `@admin-orders`,
+  `@admin-inventory` or `@register` (`--grep @admin-`, or `npm run test:admin`, runs all
   four admin areas; each also has a `test:admin-<area>` script).
 - It also carries exactly **one data tag**. `@live`: the test checks real
   backend data. `@mocked`: the endpoints under test are mocked or
   replayed, **but authenticated tests still use real API login and page
   bootstrap (`users/me`, `cart`, `currencies`)**. `@mocked` and `@live`
   together cover the whole suite.
-- The auto fixture `tagPolicy` (`src/fixtures/test.ts`, rules in
+- The auto fixture `tagPolicy` (`src/fixtures/safety.ts`, rules in
   `src/config/testTags.ts`) fails any test that doesn't have exactly one
   feature tag and exactly one data tag, naming what's missing. Verified
   with a throwaway spec: two feature tags and a missing data tag both fail.
@@ -370,7 +384,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `tagPolicy`) and a `test:<feature>` script.
 - Verified: 15 auth + 17 products + 7 product-details + 12 cart + 12
   checkout + 6 admin-dashboard + 8 admin-products + 7 admin-orders + 10
-  admin-inventory + 0 untagged = 94 tests, the same as the whole suite.
+  admin-inventory + 3 register + 0 untagged = 97 tests, the same as the
+  whole suite.
   The 31 admin tests also passed `--repeat-each=5` and a `CI=1` run. In
   their HARs, every write and every products, orders and admin inventory
   request was answered by a mock. A HAR entry only counts as mocked when
@@ -743,6 +758,38 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     - Dropped connection: `checkout-submit-error` "Failed to create order.
       Please try again." **Submitting again reuses the same
       `Idempotency-Key`**, so a retry can't create a second order.
+- Register page (`/register`, "Create account – Awesome Testing"),
+  modelled as `RegisterPage`. Public: a logged-in user is redirected to
+  `/`. Mapped through MCP with every non-GET blocked, so no account was
+  created:
+  - **No API call on load.** Submit sends
+    `POST /api/v1/users/signup` with `UserRegisterDto`
+    `{username, email, password, firstName, lastName}`, exactly as typed
+    (the email case is kept). The `firstName`/`lastName` test ids say
+    `firstname`/`lastname`: `register-<field>-input` and
+    `register-<field>-error` (`role="alert"`), plus
+    `register-submit-button` "Create account", `register-submit-error`
+    and `register-login-link`.
+  - **Client validation** on submit sends nothing and sets
+    `aria-invalid`: `… is required` for each field (whitespace-only names
+    count as empty), `Username must be at least 4 characters`, `Username
+    may only contain letters, digits, dots, underscores and hyphens`,
+    `Invalid email format`, `Password must be at least 8 characters`,
+    `First/Last name must be at least 4 characters`, `… must be at most
+    255 characters`. Gaps compared with the contract: a whitespace-only
+    password and a password over 72 bytes pass the client (not tested).
+  - **Pending:** "Creating account...", disabled; forced clicks send
+    nothing more.
+  - **201:** lands on `/login` with toast `Success` / "Registration
+    successful! You can now log in.", an empty login form and no tokens.
+  - **Failures** are not retried; the values stay and the button is
+    enabled again:
+    - 400 `{message}` containing "username" and "already in use": toast
+      `Error` / "Username already exists". The same for email: "Email
+      already exists". The backend text isn't shown.
+    - 400 keyed by field: inline field errors with `aria-invalid`, no toast.
+    - Any other error (500, 429): the backend `message` in
+      `register-submit-error`.
 - Payment page (`/orders/{id}/pay`, "Pay for order – Awesome Testing"),
   modelled as `PaymentPage` for the landing check only:
   `expectToShowOrder(order)` checks the URL, title, `payment-title`
@@ -791,7 +838,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     with no toast. A failure raises a **native** `alert()` with a fixed
     text (the backend message isn't shown), keeps the row and isn't
     retried. So a failed delete raises two dialogs: the page object
-    answers every dialog with one persistent `page.on('dialog')`.
+    answers every dialog through `NativeDialogs` (one persistent
+    `page.on('dialog')` that logs them; `CartPage.clearCart` uses it too).
   - While pending, that row's button reads "Deleting..." and is disabled.
   - A dropped connection on delete isn't covered by a test.
   - The CSV panel (`catalog-csv*`) isn't modelled; never click it.
@@ -880,7 +928,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 
   `HarReplayMock` isn't tied to product search: `serve(name)` replays any
   recording.
-  Route globs live in `apiRoutes` (`src/mocks/apiRoutes.ts`), not on a
+  Route globs live in `apiRoutes` (`src/api/endpoints.ts`), not on a
   mock class, so the mocks don't depend on each other. Endpoint paths
   live once in `apiPaths` in the same file. `AuthApi`, `SignInTraffic`
   and `ProductSearchTraffic` use them, and the string globs are built
@@ -928,7 +976,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - **Live patched mocks** use the docs' "modify API responses" pattern:
   `route.fetch()` the real response, apply `register(transform)`, then
   `route.fulfill({ response, json })`. The logic lives in the generic
-  `LivePatchedMock<T>` (`src/mocks/livePatchedMock.ts`, constructed with
+  `LivePatchedMock<T>` (`src/mocks/support/livePatchedMock.ts`, constructed with
   an `ApiEndpoint`), with `lastServed()`, `lastReal()` and the async
   `expectServedWithoutErrors(n, settleMs = 1000)`. It waits until `n`
   responses were served **or failed**, so a real-API error fails at once
@@ -1018,7 +1066,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     checks that nothing more arrives within `ms`.
   - `holdResponses()` holds every write until the returned function is
     called. Calling it again while holding returns the same release
-    (the logic is `ResponseHold`, `src/mocks/responseHold.ts`, shared
+    (the logic is `ResponseHold`, `src/mocks/support/responseHold.ts`, shared
     with other stateful mocks).
     The change is applied only on release, so a `GET /cart` during
     the hold still returns the old cart. Tests use it for the "Adding to Cart..." pending state without
@@ -1049,7 +1097,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     - answers 400 `Cart is empty` for an empty cart
     - answers 409 `Insufficient stock for product <name>` when a line is
       above a limit set with `limitStock(productId, available)` (cart kept)
-    - otherwise creates a `PENDING` order (ids from 90,001, the admin mock floor,
+    - otherwise creates a `PENDING` order (ids from 90,001, above `SAFE_MOCK_ID_FLOOR`,
       `reservationExpiresAt` now + 15 min, tax from the address country),
       calls `cartMock.clear()` like the backend, and answers 201.
   - `GET /orders/{id}` serves the created order (404 otherwise), and
@@ -1072,8 +1120,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     header), while `users/me` and `currencies` were real.
 - **`FakeProductDetailsMock`** (fixture `fakeProductDetailsMock`):
   registers before the test body.
-  - Serves `product` (generated, `stockQuantity` 5-50, `id` 10,000 or
-    more so it never clashes with the search mock's ids) for
+  - Serves `product` (generated, `stockQuantity` 5-50, `id` from
+    `randomDetailsProductId()`, 10,000-89,999, so it never clashes with the
+    search mock's ids, the safe floor or `UNKNOWN_ID`) for
     `GET /api/v1/products/{id}` (also with a trailing `/` or a query),
     minus the rating fields. Unknown ids get 404 `Product not found`.
     `alsoServe(products)` adds more products by id. Only the `cartMock`
@@ -1084,6 +1133,48 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `updateProduct(changes)` uses `Object.assign`.
   - The `productDetails` and `productReviews` routes in `apiRoutes` are
     RegExps (`page.route` accepts both), so they never match `search`.
+- **Fixture modules.** `src/fixtures/test.ts` only combines the modules
+  with `mergeTests`, so specs keep importing `test`/`expect` from it.
+  `session.ts` holds the role and saved login, `har.ts` the HAR recording,
+  `safety.ts` the auto fixtures (`tagPolicy` and both guards, built on one
+  `blockUnmockedRequests` helper), `pages.ts` the page objects and
+  `mocks.ts` the mocks and traffic assertions. A new page object or mock
+  gets its fixture in the matching module.
+- **One mock per endpoint.** Every mock fixture claims the `apiRoutes`
+  endpoints it serves (`EndpointOwners`, fixture `endpointOwners`).
+  Requesting two mocks that serve the same endpoint from separate data fails
+  at once and names both. Examples: `checkoutMock` and `adminOrdersMock`
+  (`order`), `adminCatalogMock` and `fakeProductDetailsMock`
+  (`productDetails`), a fake and a live patched mock of the same endpoint.
+  `apiErrorMock`, `networkErrorMock` and `harReplayMock` don't claim:
+  they override on purpose. Verified with a throwaway spec.
+- **Shared test data and helpers.**
+  - `twoLineCart` (fixture): two generated products (stock 10) in the fake
+    search, seeded in the cart as quantities 2 and 1. It returns
+    `{products, lines, first}`. Built on
+    `ProductGenerator.generateCart(quantities, overrides)` and
+    `cartMock.seedLines(lines)` / `expectCartLines(lines)`.
+  - Not-found cases use `UNKNOWN_ID`. Fixed backend times come from
+    `fixedTimestamp(day)` / `BASE_TIMESTAMP`.
+  - Paged responses use `pageOf`, and `toProductDetails` strips the rating
+    fields.
+- **Folder rules.**
+  - `src/api/endpoints.ts` is shared by mocks, assertions and `AuthApi`, so
+    it isn't under `mocks/`.
+  - `src/mocks/` holds only mocks, with their building blocks in
+    `src/mocks/support/`.
+  - `src/components/` holds both app-wide parts (navigation, toast, admin
+    section nav, native dialogs) and parts of one page (rows, inventory
+    inspector). Each is scoped to its root test id.
+- **Signup safety.** No test creates a real account. The auto fixture
+  `signupGuard` (every test) routes the signup endpoint on the
+  **context**, so it's in place before any page opens. Page routes win,
+  so `SignupMock` (fixture `signupMock`: 201, `receivedRequests`,
+  `holdResponses()`, `expectReceived`, `expectReceivedToStay`) and
+  `apiErrorMock` answer first. A request that no page route fulfilled
+  (no mock, or a mock that fell back) gets 418 and fails the test in
+  teardown, naming it. Verified with a throwaway spec whose page route
+  fell back. Signup carries a password, so it's not in `harUrlFilter`.
 - **Admin safety.** Admin tests never write to the live shop. Two layers:
   - The auto fixture `adminWriteGuard` (only for `userRole: 'admin'`)
     routes `**/api/**` on the **context**. Page routes always win over
@@ -1092,9 +1183,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     naming it. Verified for both leak paths: an unmocked DELETE, and a
     POST that a registered mock passed on with `fallback()`. It doesn't
     cover GETs, so request the mock for every read a test relies on.
-  - Mocked admin ids are 90,000 or more (`ADMIN_MOCK_ID_FLOOR`; the
+  - Mocked admin ids are 90,000 or more (`SAFE_MOCK_ID_FLOOR`; the
     mocks' `seed()` throws below it), so even a leaked request can't hit
-    real products (1-8) or orders. Build data with `AdminDataGenerator`.
+    real products (1-8) or orders. Build data with `ShopDataGenerator`.
 - **`AdminCatalogMock`** (fixture `adminCatalogMock`): `GET /products`
   (the whole array) and `GET`/`DELETE /products/{id}`. `holdReads()`,
   `holdDeletes()`, `deletedIds`, `expectDeletedIds(ToStay)`,
@@ -1109,8 +1200,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   rules: statuses only move forward (skips allowed), DELIVERED and
   CANCELLED are terminal, CANCELLED only from PENDING or PAID, the same
   status is a no-op, otherwise 400. `expectLastListQuery` and
-  `expectListQueriesToStay` check what the list asked for. Never combine
-  it with `checkoutMock` (both serve `GET /orders/{id}`).
+  `expectListQueriesToStay` check what the list asked for. Requesting
+  it together with `checkoutMock` fails (see "One mock per endpoint").
 - **`AdminInventoryMock`** (fixture `adminInventoryMock`): list (search,
   category, status, `pageSize`), item, movements (newest first; an
   unknown id gets 404 for the item but an empty movements page, as the app
@@ -1153,7 +1244,7 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `withProducts` takes _all_ matching products.
   - `withPageNumber`/`withPageSize` set the page (default page size 12).
   - `build()` slices `content` and derives the totals and facets from all
-    products. With no products set, it generates 8.
+    products. With no products set, it serves an empty page.
 - Category is typed as the `ProductCategory` enum on purpose. If the backend
   adds categories, update the enum.
 

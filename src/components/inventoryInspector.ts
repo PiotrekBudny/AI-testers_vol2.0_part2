@@ -2,7 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { LOAD_ERROR_TIMEOUT_MS } from '@/config/timing';
 import type { InventoryAdjustment, InventoryItem } from '@/models/inventory';
 import type { Locators } from '@/types/locators';
-import { STOCK_STATUS_LABELS } from './inventoryRow';
+import { STOCK_STATUS_LABELS } from './inventoryLabels';
 
 type AdjustmentField = 'delta' | 'reason';
 

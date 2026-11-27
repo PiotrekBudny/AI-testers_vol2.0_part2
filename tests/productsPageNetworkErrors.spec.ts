@@ -1,9 +1,11 @@
-import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
+import {
+  NO_MORE_REQUESTS_WINDOW_MS,
+  SERVER_ERROR_ATTEMPTS,
+} from '@/config/timing';
 import { test } from '@/fixtures/test';
 import { singleEntry } from '@/har/recording';
 import type { ProductSearchResponse } from '@/models/productSearchResponse';
 
-const SEARCH_ATTEMPTS = 4;
 test.describe('Products page network errors', {
   tag: ['@products', '@mocked', '@negative', '@network'],
 }, () => {
@@ -22,7 +24,7 @@ test.describe('Products page network errors', {
     await productsPage.expectLoadError();
     await networkErrorMock.expectAbortedCountToStay(
       'productSearch',
-      SEARCH_ATTEMPTS,
+      SERVER_ERROR_ATTEMPTS,
       NO_MORE_REQUESTS_WINDOW_MS,
     );
   });

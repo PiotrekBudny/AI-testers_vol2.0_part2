@@ -1,6 +1,7 @@
-import { type Dialog, expect, type Locator, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import { AdminProductRow } from '@/components/adminProductRow';
 import { AdminSectionNav } from '@/components/adminSectionNav';
+import { type ConfirmAnswer, NativeDialogs } from '@/components/nativeDialogs';
 import { LOAD_ERROR_TIMEOUT_MS } from '@/config/timing';
 import type { ProductDetails } from '@/models/product';
 import type { Locators } from '@/types/locators';
@@ -14,8 +15,6 @@ const DELETE_CONFIRMATION =
 const DELETE_FAILURE_ALERT =
   'alert: Failed to delete product. Please try again.';
 
-type DeleteAnswer = 'accept' | 'dismiss';
-
 export class AdminProductsPage extends BasePage {
   readonly url = '/admin/products';
   readonly title = 'Manage Products – Awesome Testing';
@@ -27,14 +26,13 @@ export class AdminProductsPage extends BasePage {
   readonly links: Locators<'addNew' | 'addFirst'>;
   readonly states: Locators<'loading' | 'empty' | 'error'>;
 
-  private readonly dialogs: string[] = [];
-  private confirmAnswer: DeleteAnswer = 'dismiss';
-  private answeringDialogs = false;
+  private readonly dialogs: NativeDialogs;
 
   constructor(page: Page) {
     super(page);
 
     this.sectionNav = new AdminSectionNav(page);
+    this.dialogs = new NativeDialogs(page);
     this.heading = page.getByTestId('admin-product-list-title');
     this.table = page.getByTestId('admin-product-list-table');
     this.rows = this.table.getByTestId(/^admin-product-row-\d+$/);
@@ -53,8 +51,8 @@ export class AdminProductsPage extends BasePage {
     return new AdminProductRow(this.page, productId);
   }
 
-  async deleteProduct(productId: number, answer: DeleteAnswer): Promise<void> {
-    this.answerDialogs(answer);
+  async deleteProduct(productId: number, answer: ConfirmAnswer): Promise<void> {
+    this.dialogs.answerConfirmsWith(answer);
     await this.product(productId).delete();
   }
 
@@ -99,34 +97,10 @@ export class AdminProductsPage extends BasePage {
   }
 
   async expectDeleteConfirmationAsked(): Promise<void> {
-    await this.expectDialogs([DELETE_CONFIRMATION]);
+    await this.dialogs.expectShown([DELETE_CONFIRMATION]);
   }
 
   async expectDeleteFailureAlerted(): Promise<void> {
-    await this.expectDialogs([DELETE_CONFIRMATION, DELETE_FAILURE_ALERT]);
-  }
-
-  private async expectDialogs(dialogs: string[]): Promise<void> {
-    await expect
-      .poll(() => this.dialogs, { message: 'native dialogs shown' })
-      .toEqual(dialogs);
-  }
-
-  private answerDialogs(answer: DeleteAnswer): void {
-    this.confirmAnswer = answer;
-    if (this.answeringDialogs) {
-      return;
-    }
-    this.answeringDialogs = true;
-    this.page.on('dialog', (dialog) => this.handleDialog(dialog));
-  }
-
-  private async handleDialog(dialog: Dialog): Promise<void> {
-    this.dialogs.push(`${dialog.type()}: ${dialog.message()}`);
-    if (dialog.type() === 'confirm' && this.confirmAnswer === 'dismiss') {
-      await dialog.dismiss();
-      return;
-    }
-    await dialog.accept();
+    await this.dialogs.expectShown([DELETE_CONFIRMATION, DELETE_FAILURE_ALERT]);
   }
 }

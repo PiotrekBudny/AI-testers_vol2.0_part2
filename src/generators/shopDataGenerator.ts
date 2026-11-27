@@ -3,9 +3,10 @@ import type { InventoryItem } from '@/models/inventory';
 import type { Order } from '@/models/order';
 import type { ProductDetails } from '@/models/product';
 import { AddressGenerator } from './addressGenerator';
-import { ProductGenerator } from './productGenerator';
+import { ProductGenerator, toProductDetails } from './productGenerator';
+import { BASE_TIMESTAMP } from './timestamps';
 
-export class AdminDataGenerator {
+export class ShopDataGenerator {
   private readonly faker: Faker;
   private readonly products: ProductGenerator;
   private readonly addresses: AddressGenerator;
@@ -23,12 +24,9 @@ export class AdminDataGenerator {
     id: number,
     overrides: Omit<Partial<ProductDetails>, 'id'> = {},
   ): ProductDetails {
-    const {
-      averageRating: _averageRating,
-      reviewCount: _reviewCount,
-      ...product
-    } = this.products.generateProduct({ ...overrides, id });
-    return product;
+    return toProductDetails(
+      this.products.generateProduct({ ...overrides, id }),
+    );
   }
 
   order(id: number, overrides: Omit<Partial<Order>, 'id'> = {}): Order {
@@ -38,7 +36,7 @@ export class AdminDataGenerator {
       fractionDigits: 2,
     });
     const totalAmount = overrides.totalAmount ?? total;
-    const createdAt = overrides.createdAt ?? '2026-11-20T10:00:00.000001';
+    const createdAt = overrides.createdAt ?? BASE_TIMESTAMP;
     return {
       id,
       username: this.faker.internet.username(),
@@ -79,7 +77,7 @@ export class AdminDataGenerator {
       category: this.faker.commerce.department(),
       availableQuantity: this.faker.number.int({ min: 10, max: 100 }),
       stockStatus: 'IN_STOCK',
-      lastChangedAt: '2026-11-20T10:00:00.000001',
+      lastChangedAt: BASE_TIMESTAMP,
       ...overrides,
     };
   }

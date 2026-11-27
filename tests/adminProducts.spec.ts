@@ -3,11 +3,11 @@ import {
   SERVER_ERROR_ATTEMPTS,
 } from '@/config/timing';
 import { test } from '@/fixtures/test';
-import { AdminDataGenerator } from '@/generators/adminDataGenerator';
+import { ShopDataGenerator } from '@/generators/shopDataGenerator';
 import type { AdminCatalogMock } from '@/mocks/adminCatalogMock';
 
 function seedTwoProducts(adminCatalogMock: AdminCatalogMock) {
-  const data = new AdminDataGenerator();
+  const data = new ShopDataGenerator();
   const first = data.product(90_001, { stockQuantity: 12 });
   const second = data.product(90_002, { stockQuantity: 7 });
   const products = [first, second];
@@ -24,7 +24,7 @@ test.describe('Admin products page', {
     adminProductsPage,
     adminCatalogMock,
   }) => {
-    const data = new AdminDataGenerator();
+    const data = new ShopDataGenerator();
     const products = [
       data.product(90_002, { price: 1299.5, stockQuantity: 0 }),
       data.product(90_001, { stockQuantity: 25 }),

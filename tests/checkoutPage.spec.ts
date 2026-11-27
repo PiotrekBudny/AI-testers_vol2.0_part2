@@ -1,28 +1,6 @@
 import { NO_MORE_REQUESTS_WINDOW_MS } from '@/config/timing';
 import { test } from '@/fixtures/test';
 import { AddressGenerator } from '@/generators/addressGenerator';
-import { ProductGenerator } from '@/generators/productGenerator';
-import type { CartMock } from '@/mocks/cartMock';
-import type { FakeProductSearchMock } from '@/mocks/fakeProductSearchMock';
-
-function seedCart(
-  fakeProductSearchMock: FakeProductSearchMock,
-  cartMock: CartMock,
-) {
-  const { products, first, second } = new ProductGenerator().generateCatalogue(
-    2,
-    { stockQuantity: 10 },
-  );
-  fakeProductSearchMock.products = products;
-  const lines = [
-    { product: first, quantity: 2 },
-    { product: second, quantity: 1 },
-  ];
-  cartMock.seed(
-    lines.map(({ product, quantity }) => ({ productId: product.id, quantity })),
-  );
-  return lines;
-}
 
 test.describe('Checkout page', {
   tag: ['@checkout', '@mocked'],
@@ -30,11 +8,11 @@ test.describe('Checkout page', {
   test('client places an order and lands on the payment page', async ({
     checkoutPage,
     paymentPage,
-    fakeProductSearchMock,
+    twoLineCart,
     cartMock,
     checkoutMock,
   }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+    const { lines } = twoLineCart;
     const address = new AddressGenerator().generate();
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
@@ -52,11 +30,10 @@ test.describe('Checkout page', {
   test('a country without a VAT rate is shown as ordered without VAT', async ({
     checkoutPage,
     paymentPage,
-    fakeProductSearchMock,
-    cartMock,
+    twoLineCart,
     checkoutMock,
   }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+    const { lines } = twoLineCart;
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
 
@@ -84,10 +61,10 @@ test.describe('Checkout page', {
 
   test('checkout shows a loading state until the cart arrives', async ({
     checkoutPage,
-    fakeProductSearchMock,
+    twoLineCart,
     cartMock,
   }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+    const { lines } = twoLineCart;
     const releaseCart = cartMock.holdReads();
 
     await checkoutPage.goto();
@@ -100,11 +77,10 @@ test.describe('Checkout page', {
   test('repeated clicks while the order is pending send one request', async ({
     checkoutPage,
     paymentPage,
-    fakeProductSearchMock,
-    cartMock,
+    twoLineCart,
     checkoutMock,
   }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+    const { lines } = twoLineCart;
     const address = new AddressGenerator().generate();
     const releaseOrder = checkoutMock.holdResponses();
     await checkoutPage.goto();
@@ -128,13 +104,8 @@ test.describe('Checkout page', {
 
   test('empty submit shows every required error and sends nothing', {
     tag: '@negative',
-  }, async ({
-    checkoutPage,
-    fakeProductSearchMock,
-    cartMock,
-    checkoutMock,
-  }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+  }, async ({ checkoutPage, twoLineCart, checkoutMock }) => {
+    const { lines } = twoLineCart;
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
 
@@ -151,13 +122,8 @@ test.describe('Checkout page', {
 
   test('a blank street and a malformed ZIP are rejected until corrected', {
     tag: '@negative',
-  }, async ({
-    checkoutPage,
-    fakeProductSearchMock,
-    cartMock,
-    checkoutMock,
-  }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+  }, async ({ checkoutPage, twoLineCart, checkoutMock }) => {
+    const { lines } = twoLineCart;
     const address = new AddressGenerator().generate();
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
@@ -187,10 +153,9 @@ test.describe('Checkout page', {
   test('back to cart leads to the cart page', async ({
     checkoutPage,
     cartPage,
-    fakeProductSearchMock,
-    cartMock,
+    twoLineCart,
   }) => {
-    const lines = seedCart(fakeProductSearchMock, cartMock);
+    const { lines } = twoLineCart;
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
 

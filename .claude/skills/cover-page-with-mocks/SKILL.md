@@ -16,7 +16,7 @@ alongside this procedure.
 - CLAUDE.md: "Page objects" (rules: no assertions in specs, `data-testid`,
   locator groups), "App facts" for neighbouring pages and "Mocking
   conventions".
-- `src/mocks/apiRoutes.ts` (endpoints), `src/fixtures/test.ts` (fixtures
+- `src/api/endpoints.ts` (endpoints), `src/fixtures/mocks.ts` and `pages.ts` (fixtures
   and their dependencies) and the mocks the page will need. List what can be
   reused before planning anything new: product data
   (`FakeProductSearchMock`, `FakeProductDetailsMock`), the cart
@@ -110,7 +110,7 @@ and traps (for example an endpoint that reads the real backend state).
 - **Page objects and components** following the CLAUDE.md rules
   (`BasePage`, `url`/`title`, grouped `Locators<…>`, shared key types such
   as `AddressField`, messages as constants in the page object).
-- **Fixtures** in `src/fixtures/test.ts` for each page object and the mock.
+- **Fixtures** in `src/fixtures/pages.ts` (page objects) and `src/fixtures/mocks.ts` (mocks; claim the endpoints with `endpointOwners`).
 - **Tag**: a new feature in `featureTags` (`src/config/testTags.ts`)
   gets its project automatically; add a `test:<feature>` script to
   `package.json`. Tests also get `@mocked`, plus `@negative` / `@network`
