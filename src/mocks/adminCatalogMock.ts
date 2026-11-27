@@ -9,6 +9,7 @@ import { ResponseHold } from './responseHold';
 export class AdminCatalogMock {
   readonly deletedIds: number[] = [];
   private products: ProductDetails[] = [];
+  private servedListReads = 0;
   private readonly deleteHold = new ResponseHold();
   private readonly readHold = new ResponseHold();
 
@@ -44,6 +45,14 @@ export class AdminCatalogMock {
     this.readHold.release();
   }
 
+  async waitForListReads(count: number): Promise<void> {
+    await expect
+      .poll(() => this.servedListReads, {
+        message: 'served product list reads',
+      })
+      .toBeGreaterThanOrEqual(count);
+  }
+
   async expectDeletedIds(ids: number[]): Promise<void> {
     await expect
       .poll(() => this.deletedIds, { message: 'deleted product ids' })
@@ -75,6 +84,7 @@ export class AdminCatalogMock {
     }
     await this.readHold.wait();
     await route.fulfill({ json: this.products });
+    this.servedListReads += 1;
   }
 
   private async handleProduct(route: Route): Promise<void> {

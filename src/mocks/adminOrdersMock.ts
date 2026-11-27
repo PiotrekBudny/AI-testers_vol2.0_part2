@@ -14,7 +14,7 @@ const FORWARD_RANK: Record<Exclude<OrderStatus, 'CANCELLED'>, number> = {
   DELIVERED: 3,
 };
 
-type ListQuery = {
+export type ListQuery = {
   page: number;
   size: number;
   status: string | null;
@@ -76,6 +76,19 @@ export class AdminOrdersMock {
         message: 'last admin orders query',
       })
       .toMatchObject(expected);
+  }
+
+  async expectListQueriesToStay(
+    queries: ListQuery[],
+    forMs: number,
+  ): Promise<void> {
+    await expectToStay(
+      this.page,
+      () => this.listQueries,
+      queries,
+      forMs,
+      'admin orders queries',
+    );
   }
 
   async expectStatusUpdates(updates: StatusUpdate[]): Promise<void> {

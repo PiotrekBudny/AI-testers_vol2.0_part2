@@ -1,1 +1,5 @@
 export const NO_MORE_REQUESTS_WINDOW_MS = 1_500;
+
+export const SERVER_ERROR_ATTEMPTS = 4;
+
+export const LOAD_ERROR_TIMEOUT_MS = 15_000;

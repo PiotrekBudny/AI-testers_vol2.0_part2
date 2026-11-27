@@ -38,7 +38,7 @@ src/
   api/savedAuthState.ts                     creates and shares one saved session per role and origin
   config/mockIds.ts                         ADMIN_MOCK_ID_FLOOR (90,000) and requireMockIds
   config/testTags.ts                        featureTags, dataTags, tagPattern, tagPolicyViolations
-  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS (settle window for "nothing more sent")
+  config/timing.ts                          NO_MORE_REQUESTS_WINDOW_MS ("nothing more sent"), SERVER_ERROR_ATTEMPTS, LOAD_ERROR_TIMEOUT_MS
   config/users.ts                           getUser('client' | 'admin') from env
   enums/productCategory.ts                  ProductCategory enum
   generators/adminDataGenerator.ts          fake admin products, orders and inventory items
@@ -91,6 +91,7 @@ hars/                                       raw HARs from the har-to-mock skill,
 tests/                                      Playwright specs (testDir)
   auth.spec.ts                              saved API session accepted by the app; logged-out redirect
   adminAuth.spec.ts                         saved admin API session accepted by the app
+  adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
@@ -733,6 +734,36 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   It loads `GET /orders/{id}` and `GET /orders/{orderId}/payments` (an
   array) and shows a `reservation-countdown`. The card form
   (`payment-card-*`, `payment-submit`) isn't modelled.
+- Admin pages, common facts (mapped through MCP with every write faked):
+  - Specs set `test.use({ userRole: 'admin' })`, seed ids of 90,000 or
+    more, and request the mock for **every** read the page makes.
+  - **Never assert dates or times.** The app converts server-local times
+    to the browser's time zone and formats them for the machine's locale.
+  - A GET answered 500 makes 4 attempts (`SERVER_ERROR_ATTEMPTS`) before
+    the error shows (`LOAD_ERROR_TIMEOUT_MS`, both in
+    `src/config/timing.ts`).
+  - The section nav has 8 tabs. `AdminSectionNav` models the four covered
+    ones (overview, products, orders, inventory), not coupons, reviews,
+    returns or purchasing.
+  - A client opening any of the four pages is redirected to `/`, with no
+    admin API call and no toast, and has no `desktop-menu-admin` link
+    (`tests/adminAccess.spec.ts`, real client session).
+- Admin dashboard (`/admin`, "Admin Dashboard – Awesome Testing"),
+  `AdminDashboardPage`:
+  - Reads `GET /products` and `GET /orders/admin?page=N&size=50` for
+    **every** page up to `totalPages`.
+  - Total orders is `totalElements`, pending counts PENDING orders, and
+    revenue sums `totalAmount` over all pages except CANCELLED.
+  - Recent orders are the 5 newest by `createdAt` (CANCELLED included).
+    Low stock lists products with `stockQuantity` below 5 (5 excluded),
+    in API order.
+  - A failed read leaves the other half working: an error box with "Try
+    again", "—" for the affected metrics and an "unavailable" text.
+  - Quirk: while loading it shows zeros, `$0.00` and "No orders found".
+    The empty-shop test therefore can't tell "empty" from "still
+    loading"; it only waits for the mocked reads.
+  - The "Commerce settings" links (gift cards, VAT rates, currencies,
+    payments, webhooks) aren't modelled.
 
 ## Mocking conventions
 
@@ -985,7 +1016,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
 - **`AdminCatalogMock`** (fixture `adminCatalogMock`): `GET /products`
   (the whole array) and `GET`/`DELETE /products/{id}`. `holdReads()`,
   `holdDeletes()`, `deletedIds`, `expectDeletedIds(ToStay)`,
-  `expectProductIds`. Used by the admin products and dashboard pages.
+  `expectProductIds`, `waitForListReads(n)` (served list reads). Used by
+  the admin products and dashboard pages. Page objects never import from
+  `src/mocks/`; specs wait on the mock instead.
 - **`AdminOrdersMock`** (fixture `adminOrdersMock`): `GET /orders/admin`
   (`status`, `page`; `pageSize` caps the page so a few orders span
   several), `GET /orders/{id}`, payments `[]`, any other order
@@ -993,8 +1026,9 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   is a bare JSON string) and `POST .../cancel`. It follows the backend
   rules: statuses only move forward (skips allowed), DELIVERED and
   CANCELLED are terminal, CANCELLED only from PENDING or PAID, the same
-  status is a no-op, otherwise 400. Never combine it with `checkoutMock`
-  (both serve `GET /orders/{id}`).
+  status is a no-op, otherwise 400. `expectLastListQuery` and
+  `expectListQueriesToStay` check what the list asked for. Never combine
+  it with `checkoutMock` (both serve `GET /orders/{id}`).
 - **`AdminInventoryMock`** (fixture `adminInventoryMock`): list (search,
   category, status, `pageSize`), item, movements (newest first; an
   unknown id gets 404 for the item but an empty movements page, as the app
