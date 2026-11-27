@@ -32,9 +32,8 @@ export class RegisterPage extends BasePage {
   readonly title = 'Create account – Awesome Testing';
 
   readonly inputs: Locators<RegisterField>;
-  readonly errors: Locators<RegisterField>;
+  readonly errors: Locators<RegisterField | 'submit'>;
   readonly submitButton: Locator;
-  readonly submitError: Locator;
 
   constructor(page: Page) {
     super(page);
@@ -53,10 +52,10 @@ export class RegisterPage extends BasePage {
       password: page.getByTestId('register-password-error'),
       firstName: page.getByTestId('register-firstname-error'),
       lastName: page.getByTestId('register-lastname-error'),
+      submit: page.getByTestId('register-submit-error'),
     };
 
     this.submitButton = page.getByTestId('register-submit-button');
-    this.submitError = page.getByTestId('register-submit-error');
   }
 
   async fill(request: RegisterRequest): Promise<void> {
@@ -122,7 +121,7 @@ export class RegisterPage extends BasePage {
     await this.expectToBeOpen();
     await this.expectFilledWith(request);
     await this.expectFieldErrors({});
-    await expect(this.submitError).toBeHidden();
+    await expect(this.errors.submit).toBeHidden();
     await this.expectReadyToSubmit();
   }
 }

@@ -5,6 +5,7 @@ import {
   type Request,
   type Response,
 } from '@playwright/test';
+import { type ApiEndpoint, apiRoutes } from '@/api/endpoints';
 import type { UserRole } from '@/config/users';
 import { pathAndQuery, writeHar } from '@/har/harFile';
 import {
@@ -13,6 +14,7 @@ import {
   type Recording,
   readRecording,
 } from '@/har/recording';
+import type { EndpointOwners } from '@/mocks/support/endpointOwners';
 
 export class HarReplayMock {
   constructor(
@@ -20,6 +22,7 @@ export class HarReplayMock {
     private readonly workDirectory: string,
     private readonly baseURL: string,
     private readonly userRole: UserRole,
+    private readonly endpointOwners: EndpointOwners,
   ) {}
 
   async serve(name: string): Promise<Recording> {
@@ -29,6 +32,9 @@ export class HarReplayMock {
         `${name} was recorded as ${recording.capture.role}, but this test runs as ${this.userRole}: add test.use({ userRole: '${recording.capture.role}' })`,
       );
     }
+    this.endpointOwners.claim('harReplayMock', [
+      replayedEndpoint(name, recording.capture.route),
+    ]);
     const harPath = join(this.workDirectory, `${name}.har`);
     writeHar(
       harPath,
@@ -75,4 +81,16 @@ export class HarReplayMock {
       expect(await response.json()).toEqual(entry.body);
     }
   }
+}
+
+function replayedEndpoint(name: string, route: string): ApiEndpoint {
+  const endpoint = (Object.keys(apiRoutes) as ApiEndpoint[]).find(
+    (candidate) => apiRoutes[candidate] === route,
+  );
+  if (endpoint === undefined) {
+    throw new Error(
+      `${name} replays ${route}, which is not a glob from apiRoutes (src/api/endpoints.ts): record it with one`,
+    );
+  }
+  return endpoint;
 }

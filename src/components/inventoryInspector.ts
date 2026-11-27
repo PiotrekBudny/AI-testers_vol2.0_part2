@@ -24,21 +24,19 @@ function signed(delta: number): string {
 
 export class InventoryInspector {
   readonly root: Locator;
-  readonly noSelection: Locator;
   readonly applyButton: Locator;
   readonly movementRows: Locator;
-  readonly noMovements: Locator;
 
   readonly inputs: Locators<AdjustmentField>;
-  readonly texts: Locators<'name' | 'quantity' | 'status'>;
+  readonly texts: Locators<
+    'name' | 'quantity' | 'status' | 'noSelection' | 'noMovements'
+  >;
   readonly errors: Locators<'adjustment' | 'detail'>;
 
   constructor(page: Page) {
     this.root = page.getByTestId('inventory-inspector');
-    this.noSelection = this.root.getByTestId('inventory-no-selection');
     this.applyButton = this.root.getByTestId('inventory-apply-adjustment');
     this.movementRows = this.root.getByTestId(/^inventory-movement-\d+$/);
-    this.noMovements = this.root.getByTestId('inventory-movements-empty');
     this.inputs = {
       delta: this.root.getByTestId('inventory-delta'),
       reason: this.root.getByTestId('inventory-reason'),
@@ -47,6 +45,8 @@ export class InventoryInspector {
       name: this.root.getByTestId('inventory-selected-name'),
       quantity: this.root.getByTestId('inventory-selected-quantity'),
       status: this.root.getByTestId('inventory-selected-status'),
+      noSelection: this.root.getByTestId('inventory-no-selection'),
+      noMovements: this.root.getByTestId('inventory-movements-empty'),
     };
     this.errors = {
       adjustment: this.root.getByTestId('inventory-adjustment-error'),
@@ -69,12 +69,12 @@ export class InventoryInspector {
   }
 
   async expectNoSelection(): Promise<void> {
-    await expect(this.noSelection).toBeVisible();
+    await expect(this.texts.noSelection).toBeVisible();
     await expect(this.applyButton).toBeHidden();
   }
 
   async expectToShow(item: InventoryItem): Promise<void> {
-    await expect(this.noSelection).toBeHidden();
+    await expect(this.texts.noSelection).toBeHidden();
     await expect(this.texts.name).toHaveText(item.name);
     await expect(this.texts.quantity).toHaveText(
       String(item.availableQuantity),
@@ -85,13 +85,13 @@ export class InventoryInspector {
   }
 
   async expectNoMovements(): Promise<void> {
-    await expect(this.noMovements).toHaveText('No movements recorded.');
+    await expect(this.texts.noMovements).toHaveText('No movements recorded.');
     await expect(this.movementRows).toHaveCount(0);
   }
 
   async expectMovements(newestFirst: ShownMovement[]): Promise<void> {
     await expect(this.movementRows).toHaveCount(newestFirst.length);
-    await expect(this.noMovements).toBeHidden();
+    await expect(this.texts.noMovements).toBeHidden();
     for (const [index, { id, delta, reason }] of newestFirst.entries()) {
       const row = this.movementRows.nth(index);
       await expect(row).toHaveAttribute(

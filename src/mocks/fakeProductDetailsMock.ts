@@ -1,8 +1,8 @@
 import type { Page, Route } from '@playwright/test';
 import { apiRoutes } from '@/api/endpoints';
 import { toProductDetails } from '@/generators/productGenerator';
+import { pageOf } from '@/mocks/support/paging';
 import type { Product } from '@/models/product';
-import { pageOf } from './support/paging';
 
 const REVIEWS_PAGE_SIZE = 10;
 

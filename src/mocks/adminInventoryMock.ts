@@ -2,15 +2,15 @@ import { expect, type Page, type Request, type Route } from '@playwright/test';
 import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
 import { requireMockIds } from '@/config/mockIds';
+import { pageOf } from '@/mocks/support/paging';
+import { pathId } from '@/mocks/support/pathId';
+import { ResponseHold } from '@/mocks/support/responseHold';
 import type {
   InventoryAdjustment,
   InventoryItem,
   InventoryMovement,
   StockStatus,
 } from '@/models/inventory';
-import { pageOf } from './support/paging';
-import { pathId } from './support/pathId';
-import { ResponseHold } from './support/responseHold';
 
 const LOW_STOCK_LIMIT = 5;
 

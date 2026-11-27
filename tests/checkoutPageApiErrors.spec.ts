@@ -66,7 +66,7 @@ test.describe('Checkout page API errors', {
       street: 'Street must not be blank',
       zipCode: 'Invalid zip code',
     };
-    await checkoutMock.rejectAddress(fieldErrors);
+    checkoutMock.rejectAddress(fieldErrors);
     await checkoutPage.goto();
     await checkoutPage.expectToShowCart(lines);
     await checkoutPage.fillAddress(address);

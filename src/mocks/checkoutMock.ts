@@ -4,6 +4,9 @@ import { expectToStay } from '@/assertions/settle';
 import { SAFE_MOCK_ID_FLOOR } from '@/config/mockIds';
 import { ShopDataGenerator } from '@/generators/shopDataGenerator';
 import { toBackendTimestamp } from '@/generators/timestamps';
+import { roundToCents } from '@/mocks/support/money';
+import { pathId } from '@/mocks/support/pathId';
+import { ResponseHold } from '@/mocks/support/responseHold';
 import type {
   Address,
   AddressFieldErrors,
@@ -12,9 +15,6 @@ import type {
   VatRate,
 } from '@/models/order';
 import type { CartMock } from './cartMock';
-import { roundToCents } from './support/money';
-import { pathId } from './support/pathId';
-import { ResponseHold } from './support/responseHold';
 
 const DEFAULT_VAT_RATES: VatRate[] = [
   { countryCode: 'PL', countryName: 'Poland', rate: 23 },
@@ -39,6 +39,7 @@ export class CheckoutMock {
   private readonly stockLimits = new Map<number, number>();
   private readonly vatRates: VatRate[] = [...DEFAULT_VAT_RATES];
   private readonly taxPreviews: TaxPreview[] = [];
+  private addressRejection: AddressFieldErrors | undefined;
   private readonly orderHold = new ResponseHold();
   private readonly orderData = new ShopDataGenerator();
 
@@ -70,15 +71,8 @@ export class CheckoutMock {
     this.stockLimits.set(productId, available);
   }
 
-  async rejectAddress(errors: AddressFieldErrors): Promise<void> {
-    await this.page.route(
-      apiRoutes.orders,
-      async (route) => {
-        this.receive(route.request());
-        await route.fulfill({ status: 400, json: errors });
-      },
-      { times: 1 },
-    );
+  rejectAddress(errors: AddressFieldErrors): void {
+    this.addressRejection = errors;
   }
 
   holdResponses(): () => void {
@@ -205,7 +199,13 @@ export class CheckoutMock {
       });
       return;
     }
-    const totalAmount = this.cartMock.cart().totalPrice;
+    const totalAmount = await this.readCart(
+      route,
+      () => this.cartMock.cart().totalPrice,
+    );
+    if (totalAmount === undefined) {
+      return;
+    }
     const tax = this.taxFor(country, totalAmount);
     if (tax === undefined) {
       await route.fulfill({
@@ -225,6 +225,12 @@ export class CheckoutMock {
       return;
     }
     const { address, idempotencyKey } = this.receive(route.request());
+    if (this.addressRejection !== undefined) {
+      const errors = this.addressRejection;
+      this.addressRejection = undefined;
+      await route.fulfill({ status: 400, json: errors });
+      return;
+    }
     await this.orderHold.wait();
     const replayed =
       idempotencyKey === null
@@ -238,7 +244,10 @@ export class CheckoutMock {
       });
       return;
     }
-    const lines = this.cartMock.lines();
+    const lines = await this.readCart(route, () => this.cartMock.lines());
+    if (lines === undefined) {
+      return;
+    }
     if (lines.length === 0) {
       await route.fulfill({ status: 400, json: { message: 'Cart is empty' } });
       return;
@@ -263,6 +272,23 @@ export class CheckoutMock {
     }
     this.cartMock.clear();
     await route.fulfill({ status: 201, json: order });
+  }
+
+  private async readCart<T>(
+    route: Route,
+    read: () => T,
+  ): Promise<T | undefined> {
+    try {
+      return read();
+    } catch (error) {
+      await route.fulfill({
+        status: 500,
+        json: {
+          message: error instanceof Error ? error.message : String(error),
+        },
+      });
+      return undefined;
+    }
   }
 
   private createOrder(address: Address): Order {

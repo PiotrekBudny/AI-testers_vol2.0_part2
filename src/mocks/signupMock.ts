@@ -1,8 +1,8 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
+import { ResponseHold } from '@/mocks/support/responseHold';
 import type { RegisterRequest } from '@/models/auth';
-import { ResponseHold } from './support/responseHold';
 
 export class SignupMock {
   readonly receivedRequests: RegisterRequest[] = [];

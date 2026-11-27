@@ -17,8 +17,7 @@ export class AdminOrdersPage extends BasePage {
   readonly statusFilter: Locator;
   readonly paginationInfo: Locator;
   readonly rows: Locator;
-  readonly emptyState: Locator;
-  readonly loadError: Locator;
+  readonly states: Locators<'empty' | 'error'>;
   readonly buttons: Locators<'previous' | 'next'>;
 
   constructor(page: Page) {
@@ -29,8 +28,10 @@ export class AdminOrdersPage extends BasePage {
     this.statusFilter = page.getByTestId('admin-order-list-status-filter');
     this.paginationInfo = page.getByTestId('admin-order-list-pagination-info');
     this.rows = page.getByTestId(/^admin-order-row-\d+$/);
-    this.emptyState = page.getByTestId('admin-order-list-empty');
-    this.loadError = page.getByTestId('admin-order-list-error');
+    this.states = {
+      empty: page.getByTestId('admin-order-list-empty'),
+      error: page.getByTestId('admin-order-list-error'),
+    };
     this.buttons = {
       previous: page.getByTestId('admin-order-list-prev-page'),
       next: page.getByTestId('admin-order-list-next-page'),
@@ -59,8 +60,8 @@ export class AdminOrdersPage extends BasePage {
       );
       await this.order(order.id).expectToShow(order);
     }
-    await expect(this.emptyState).toBeHidden();
-    await expect(this.loadError).toBeHidden();
+    await expect(this.states.empty).toBeHidden();
+    await expect(this.states.error).toBeHidden();
   }
 
   async expectPagination(current: number, total: number): Promise<void> {
@@ -70,16 +71,16 @@ export class AdminOrdersPage extends BasePage {
   }
 
   async expectNoOrders(): Promise<void> {
-    await expect(this.emptyState).toContainText('No orders found');
+    await expect(this.states.empty).toContainText('No orders found');
     await expect(this.rows).toHaveCount(0);
-    await expect(this.loadError).toBeHidden();
+    await expect(this.states.error).toBeHidden();
   }
 
   async expectLoadError(): Promise<void> {
-    await expect(this.loadError).toContainText('Error loading orders', {
+    await expect(this.states.error).toContainText('Error loading orders', {
       timeout: LOAD_ERROR_TIMEOUT_MS,
     });
     await expect(this.rows).toHaveCount(0);
-    await expect(this.emptyState).toBeHidden();
+    await expect(this.states.empty).toBeHidden();
   }
 }

@@ -840,6 +840,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
     retried. So a failed delete raises two dialogs: the page object
     answers every dialog through `NativeDialogs` (one persistent
     `page.on('dialog')` that logs them; `CartPage.clearCart` uses it too).
+    An answer that fails (dialog already handled, page closed) is recorded,
+    and `expectShown` reports it instead of an unhandled rejection.
   - While pending, that row's button reads "Deleting..." and is disabled.
   - A dropped connection on delete isn't covered by a test.
   - The CSV panel (`catalog-csv*`) isn't modelled; never click it.
@@ -1103,7 +1105,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - `GET /orders/{id}` serves the created order (404 otherwise), and
     `GET /orders/{id}/payments` serves `[]` for the payment page.
   - `rejectAddress(errors)` answers the next POST once with a 400
-    `ValidationErrorsDto` (`{zipCode: '…'}`).
+    `ValidationErrorsDto` (`{zipCode: '…'}`). Other methods on `/orders`
+    don't use it up. A cart line whose product the mocks don't know makes
+    the order POST and the tax preview answer 500 with `CartMock`'s message
+    instead of hanging.
   - `attemptKeys` records the `Idempotency-Key` of every order POST from
     `page.on('request')`, so it also sees requests that `NetworkErrorMock`
     aborted. `expectAttemptsToShareIdempotencyKey(n)` checks n attempts
@@ -1146,8 +1151,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   at once and names both. Examples: `checkoutMock` and `adminOrdersMock`
   (`order`), `adminCatalogMock` and `fakeProductDetailsMock`
   (`productDetails`), a fake and a live patched mock of the same endpoint.
-  `apiErrorMock`, `networkErrorMock` and `harReplayMock` don't claim:
-  they override on purpose. Verified with a throwaway spec.
+  `harReplayMock.serve()` claims the endpoint whose `apiRoutes` glob the
+  recording replays (a recording with any other glob fails). `apiErrorMock`
+  and `networkErrorMock` don't claim: they override on purpose. Verified
+  with a throwaway spec.
 - **Shared test data and helpers.**
   - `twoLineCart` (fixture): two generated products (stock 10) in the fake
     search, seeded in the cart as quantities 2 and 1. It returns

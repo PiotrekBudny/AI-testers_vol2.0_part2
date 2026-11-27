@@ -1,10 +1,10 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { apiRoutes } from '@/api/endpoints';
 import { expectToStay } from '@/assertions/settle';
+import { roundToCents } from '@/mocks/support/money';
+import { ResponseHold } from '@/mocks/support/responseHold';
 import type { Cart, CartItem, CartLine } from '@/models/cart';
 import type { Product } from '@/models/product';
-import { roundToCents } from './support/money';
-import { ResponseHold } from './support/responseHold';
 
 const CART_ITEM_NOT_FOUND = { message: 'Cart item not found' };
 

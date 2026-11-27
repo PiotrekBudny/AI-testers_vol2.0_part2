@@ -167,13 +167,18 @@ export const mocksTest = sessionTest.extend<Mocks>({
   networkErrorMock: async ({ page }, use) => {
     await use(new NetworkErrorMock(page));
   },
-  harReplayMock: async ({ page, baseURL, userRole }, use, testInfo) => {
+  harReplayMock: async (
+    { page, baseURL, userRole, endpointOwners },
+    use,
+    testInfo,
+  ) => {
     await use(
       new HarReplayMock(
         page,
         testInfo.outputPath('har-work'),
         requireBaseURL(baseURL),
         userRole,
+        endpointOwners,
       ),
     );
   },
