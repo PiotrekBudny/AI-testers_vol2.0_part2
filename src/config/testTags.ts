@@ -4,6 +4,10 @@ export const featureTags = [
   'product-details',
   'cart',
   'checkout',
+  'admin-dashboard',
+  'admin-products',
+  'admin-orders',
+  'admin-inventory',
 ] as const;
 
 export const dataTags = ['@mocked', '@live'] as const;

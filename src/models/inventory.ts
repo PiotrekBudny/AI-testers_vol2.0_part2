@@ -1,0 +1,37 @@
+export type StockStatus = 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+
+export interface InventoryItem {
+  productId: number;
+  name: string;
+  category: string;
+  availableQuantity: number;
+  stockStatus: StockStatus;
+  lastChangedAt: string;
+}
+
+export type InventoryMovementType =
+  | 'INITIAL_STOCK'
+  | 'ADMIN_ADJUSTMENT'
+  | 'ORDER_DEDUCTED'
+  | 'ORDER_RESTORED'
+  | 'PURCHASE_RECEIVED'
+  | 'RETURN_RESTOCKED';
+
+export interface InventoryMovement {
+  id: number;
+  productId: number;
+  orderId: number | null;
+  type: InventoryMovementType;
+  delta: number;
+  quantityAfter: number;
+  actor: string;
+  reason: string;
+  requestId: string | null;
+  createdAt: string;
+}
+
+export interface InventoryAdjustment {
+  delta: number;
+  reason: string;
+  requestId: string;
+}
