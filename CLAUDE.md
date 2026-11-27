@@ -29,6 +29,7 @@ product details page, the cart and checkout (up to the payment page).
 src/
   builders/productSearchResponseBuilder.ts  full search response (paging + facets)
   components/adminSectionNav.ts             AdminSectionNav (tabs on every /admin page)
+  components/adminOrderRow.ts               AdminOrderRow (one admin-order-row-{id})
   components/adminProductRow.ts             AdminProductRow (one admin-product-row-{id})
   components/cartItemRow.ts                 CartItemRow (one cart-item-{id} row on /cart)
   components/checkoutItemRow.ts             CheckoutItemRow (one checkout-item-{id} summary row)
@@ -94,6 +95,7 @@ tests/                                      Playwright specs (testDir)
   adminAuth.spec.ts                         saved admin API session accepted by the app
   adminDashboard.spec.ts                    /admin: metrics over all pages, low stock, empty, failed reads + retry, links
   adminProducts.spec.ts                     /admin/products: list, empty, delete confirm/dismiss/pending/409, loading, load error
+  adminOrders.spec.ts                       /admin/orders + details: paging, filter, status update, rejection, cancel, load error
   loginPage.spec.ts                         login form (empty storageState): sign-in, validation, links
   productsPage.spec.ts                      /products: all products, empty, long texts, out of stock
   productsPageSearch.spec.ts                /products search box: by name, by description, no results, ✕
@@ -779,6 +781,31 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   - While pending, that row's button reads "Deleting..." and is disabled.
   - A dropped connection on delete isn't covered by a test.
   - The CSV panel (`catalog-csv*`) isn't modelled; never click it.
+- Admin orders (`/admin/orders`, "Manage Orders – Awesome Testing"),
+  `AdminOrdersPage` with `AdminOrderRow`, and the order details page
+  (`/orders/{id}`, "Order details – Awesome Testing"),
+  `AdminOrderDetailsPage` (`open(id)`, or `expectToShowOrder(order)`
+  after following a link):
+  - The list reads `GET /orders/admin?page=0&size=10[&status=X]`, in API
+    order. The status filter (`ALL` sends no `status`) returns to page 0,
+    and the URL doesn't change. Statuses are uppercase in `textContent`.
+  - Details reads the order, `/payments` and `/shipments`. With the
+    mock's 404 it says the order wasn't handed to the warehouse, which
+    says nothing about the real shipment data. Shipments and tracking
+    aren't covered.
+  - Status update: choose in `order-details-status-select`, then "Update"
+    (disabled while unchanged) sends `PUT /orders/{id}/status` with a
+    bare JSON string. Pending shows "Updating..." with the button and
+    select disabled. A failure shows an `Error` toast, keeps the badge
+    and the chosen value, and isn't retried.
+  - Cancel is a custom dialog (`order-cancel-dialog`), not a native one.
+    Cancel and "Expire reservation now" show for PENDING only. **Never
+    click expire.**
+  - Quirks: the select offers all five statuses even on DELIVERED and
+    just-cancelled orders, so the UI sends changes the backend rules
+    reject. The backend allows cancelling a PAID order, but the UI has no
+    button for it. A DELIVERED order shows a customer-style "Request a
+    return" button (`order-return-open`, not modelled).
 
 ## Mocking conventions
 
