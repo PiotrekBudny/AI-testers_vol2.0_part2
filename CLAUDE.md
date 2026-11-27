@@ -136,7 +136,11 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   forbids classes with only static members, so use instance methods).
   `biome.json` excludes `.claude/skills/**/SKILL.md`, because Biome's
   Markdown formatter breaks YAML frontmatter (it inserts a blank line
-  after the opening `---` and turns a leading `+` into a list).
+  after the opening `---` and turns a leading `+` into a list). It also
+  excludes `.claude/skills/**/mcp-*.js`: those files are a bare
+  `async (page) => {…}` that `browser_run_code_unsafe` wraps as
+  `await (<code>)(page)`, so the trailing `;` Biome adds is a syntax
+  error.
 - The Husky pre-commit hook runs `lint-staged` (Biome on staged
   `ts/js/json/md`), then `typecheck`, then the full `npm test`.
 - CI (`.github/workflows/ci.yml`) runs on push/PR to `main`, and manually
@@ -234,6 +238,10 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   tests and in Playwright MCP, including the live-write rules.
   **mock-api-errors** covers negative scenarios with `ApiErrorMock`
   (4xx/5xx, the 401 refresh rule, exploring errors through MCP).
+  **cover-page-with-mocks** is the whole workflow for a new page: spec,
+  safe MCP exploration (its `mcp-safety-net.js` blocks every non-GET
+  API call), a stateful mock that composes the existing ones, page
+  objects, tags and the scenario checklist (reference: checkout).
 
 ## Playwright config
 
