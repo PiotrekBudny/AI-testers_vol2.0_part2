@@ -32,12 +32,27 @@ see and change, and what it may change on the **shared live shop**.
   - Payment service: `GET /api/v1/admin/payments`. Warehouse service: `/api/v1/admin/{suppliers,purchase-orders,returns}`.
   - Check the exact contract before using an endpoint: `curl -s https://awesome.byst.re/v3/api-docs` (main), `/payment/v3/api-docs` and `/warehouse/v3/api-docs`.
 
-Not mapped in code yet: `NavigationBar` has no `warehouse`/`admin` links, and
-there's no admin page object. Add them when a test first needs them (see below).
+Modelled in code: the dashboard, products, orders (list and details) and
+inventory pages, `AdminSectionNav`, and `NavigationBar.adminLink`. The other
+admin sections and `/warehouse` have no page objects yet.
+
+## Mocked admin tests (the default)
+
+The four modelled areas are covered **without any live write**; follow them
+for new admin tests. CLAUDE.md has the page facts and the mocks
+(`AdminCatalogMock`, `AdminOrdersMock`, `AdminInventoryMock`).
+
+- The auto fixture `adminWriteGuard` answers any `/api` write that no page
+  route handled with 418 and fails the test. It doesn't cover GETs, so
+  request the mock for every read the test relies on. Never weaken it. A
+  test that really needs a live write (rules below) needs a deliberate,
+  user-approved change to the guard first.
+- Seed ids of 90,000 or more (`ADMIN_MOCK_ID_FLOOR`) with
+  `AdminDataGenerator`.
 
 ## Writing admin tests
 
-- One file per area: **`tests/admin<Area>.spec.ts`**, for example `adminDashboard.spec.ts` or `adminProducts.spec.ts`. Set the role once at the top, and never mix client and admin tests in one file. The example assumes an `AdminDashboardPage` with its fixture, which doesn't exist yet (see Page objects below):
+- One file per area: **`tests/admin<Area>.spec.ts`**, for example `adminDashboard.spec.ts` or `adminProducts.spec.ts`. Set the role once at the top, and never mix client and admin tests in one file. A minimal example (a real dashboard test also requests `adminCatalogMock` and `adminOrdersMock`):
 
   ```ts
   import { test } from '@/fixtures/test';
@@ -54,9 +69,9 @@ there's no admin page object. Add them when a test first needs them (see below).
 - The `storageState` fixture creates the admin state on first use in the run and loads it for subsequent admin tests. Use `getUser('admin').displayName` for the expected profile name.
 - `tests/adminAuth.spec.ts` proves the saved session: no redirect to `/login`, and the profile shows `ADMIN_DISPLAY_NAME`.
 - **Page objects:** follow CLAUDE.md.
-  - Add `src/pages/adminDashboardPage.ts` (`readonly url = '/admin'`, extends `BasePage`, `getByTestId` locators grouped as `headings`, `sectionLinks`, `metrics` and so on) and its fixture in `src/fixtures/test.ts`.
-  - Admin sub-pages get their own classes (`AdminProductsPage`, `/admin/products`, …).
-  - Add a `menuLinks` group with `warehouse` and `admin` to `NavigationBar` (it has no menu links today, since no test used them). They're visible only for admins.
+  - One class per view (`AdminDashboardPage`, `AdminProductsPage`, …) with a fixture in `src/fixtures/test.ts`; follow `src/pages/admin*Page.ts`.
+  - The section tabs are the `AdminSectionNav` component. Add a tab there when a test covers a new section.
+  - `NavigationBar.adminLink` is admin-only. A `warehouse` link isn't modelled yet.
 - **Mocks:** reads on admin pages can use the fake or recorded mocks like any page. Record admin endpoints with the **har-to-mock** skill using `--role admin`, and replay them in an admin spec, since `serve()` checks the role.
 
 ## Calling admin endpoints from a test (setup and cleanup)

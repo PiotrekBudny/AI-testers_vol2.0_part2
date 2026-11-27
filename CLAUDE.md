@@ -14,7 +14,8 @@ Playwright + TypeScript end-to-end tests for the shop at
 <https://aitesters.byst.re>, driven by mocked backend responses
 (`page.route`), plus a few tests against the live API. Current scope:
 the login form, the product list (search, errors, network errors), the
-product details page, the cart and checkout (up to the payment page).
+product details page, the cart and checkout (up to the payment page), and
+the admin dashboard, products, orders and inventory pages.
 
 - API docs (Swagger UI): <https://awesome.byst.re/swagger-ui/index.html>;
   raw spec at `https://awesome.byst.re/v3/api-docs` (fetch with `curl`).
@@ -366,8 +367,14 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `--grep "@cart.*@negative"`. A new feature tag needs an entry in
   `featureTags` in `src/config/testTags.ts` (shared by the config and
   `tagPolicy`) and a `test:<feature>` script.
-- Verified: 11 auth + 17 products + 7 product-details + 12 cart + 12
-  checkout + 0 untagged = 59 tests, the same as the whole suite.
+- Verified: 15 auth + 17 products + 7 product-details + 12 cart + 12
+  checkout + 6 admin-dashboard + 8 admin-products + 7 admin-orders + 10
+  admin-inventory + 0 untagged = 94 tests, the same as the whole suite.
+  The 31 admin tests also passed `--repeat-each=5` and a `CI=1` run. In
+  their HARs, every write and every products, orders and admin inventory
+  request was answered by a mock. A HAR entry only counts as mocked when
+  it has a status and no headers beyond `content-type` and
+  `content-length`: a request with no response also has no `cf-ray`.
 
 ## Page objects
 
@@ -491,7 +498,8 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   `links.cart` and `links.profile` (leads to `/profile`) show only when
   logged in, as do the desktop menu links, selects and logout button
   (not modelled; no test uses them). Mapped for the desktop layout as a
-  client; admins may see more links.
+  client. Admins also get `desktop-menu-admin` (`navigation.adminLink`)
+  and a warehouse link (not modelled).
 - Products page (`/products`, "Products – Awesome Testing"), modelled as
   `ProductsPage`:
   - Every product card repeats the same test ids (`product-item`,
@@ -1153,13 +1161,17 @@ from the same folder stay relative (`./basePage`, `./apiRoutes`).
   (`CLIENT_*` / `ADMIN_*`: username, password, display name). On CI they
   come from repository secrets and variables.
 - Admin API login works (verified: 200, `ROLE_ADMIN`, no MFA), and so does
-  admin in Playwright MCP via `mcp-login.mjs admin`. The admin UI isn't
-  modelled in code yet: no `warehouse`/`admin` menu links in
-  `NavigationBar`, no admin page objects; `adminAuth.spec.ts` only checks the saved session. The
-  **admin-login** skill (`.claude/skills/admin-login/SKILL.md`) has the
-  mapped test ids, the admin-only endpoints and the agreed rules for admin
-  tests (separate `tests/admin*.spec.ts`, live writes only on self-created
-  prefixed data with cleanup, MCP writes only with the user's OK).
+  admin in Playwright MCP via `mcp-login.mjs admin`. The dashboard,
+  products, orders and inventory pages have mocked coverage. Not covered:
+  product add and edit forms, CSV import and export, "Expire reservation
+  now", order shipments, the other admin sections, `/warehouse` and any
+  live admin write. The **admin-login** skill
+  (`.claude/skills/admin-login/SKILL.md`) has the admin-only endpoints and
+  the agreed rules for admin tests (separate `tests/admin*.spec.ts`, live
+  writes only on self-created prefixed data with cleanup, MCP writes only
+  with the user's OK).
+- `AdminInventoryMock` assumes "low stock" means 5 or less. The real
+  boundary is unverified, so no test checks it.
 - The builder derives facets from exactly the given products. It doesn't yet
   model "facets ignore the category filter" for category-filtered mocks.
 - Image paths are taken from a real response but haven't been checked
